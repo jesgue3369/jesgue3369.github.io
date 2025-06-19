@@ -55,7 +55,7 @@ const ASSET_PATHS = {
     spell_fagulha: './assets/spell_fagulha.png',
     spell_bola_de_fogo: './assets/spell_bola_de_fogo.png',
     spell_estilhaco_de_gelo: './assets/spell_estilhaco_de_gelo.png',
-    // Novos assets para o background
+    // NOVOS ASSETS PARA O BACKGROUND
     background_grass: './assets/background_grass.png',
     cloud: './assets/cloud.png'
 };
@@ -92,6 +92,7 @@ let playerAnimationOffset = 0;
 const PLAYER_ANIMATION_AMPLITUDE = 5;
 const PLAYER_ANIMATION_SPEED = 5;
 
+// NOVAS VARIÁVEIS PARA BACKGROUND E NUVENS
 const GRASS_HEIGHT_RATIO = 0.3; // 30% da altura da tela para a grama
 let clouds = [];
 const CLOUD_SPAWN_INTERVAL = 8000; // Tempo em ms para spawnar uma nova nuvem
@@ -1126,20 +1127,41 @@ function gameLoop(currentTime) {
     ctx.fillStyle = '#87CEEB'; // Light sky blue
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO));
 
-    // Desenha a grama texturizada
+    // Desenha a grama texturizada com variação de altura
     const grassImage = loadedAssets.background_grass;
-    const grassHeight = GAME_HEIGHT * GRASS_HEIGHT_RATIO;
-    const grassY = GAME_HEIGHT - grassHeight;
+    const grassUnevenAmplitude = 20; // Variação de altura em pixels (+/- 10 pixels do centro)
 
     if (grassImage && grassImage.complete) {
-        // Para texturizar, desenhamos a imagem várias vezes horizontalmente
-        const pattern = ctx.createPattern(grassImage, 'repeat');
-        ctx.fillStyle = pattern;
-        ctx.fillRect(0, grassY, GAME_WIDTH, grassHeight);
+        const grassTextureWidth = grassImage.width;
+        const grassTextureHeight = grassImage.height;
+
+        // Define a linha base onde a grama deveria começar (topo da seção de grama, sem variação)
+        const baseGrassTopY = GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO);
+
+        // Preenche a área abaixo da linha de base com uma cor sólida da grama
+        // Isso ajuda a evitar lacunas visíveis se a imagem da grama for pequena ou a variação for grande.
+        ctx.fillStyle = '#7CFC00'; // Uma cor base de grama sólida (Lawn Green)
+        ctx.fillRect(0, baseGrassTopY, GAME_WIDTH, GAME_HEIGHT - baseGrassTopY);
+
+        // Desenha as tiles de grama na linha superior com variação de altura
+        for (let x = 0; x < GAME_WIDTH; x += grassTextureWidth) {
+            // Calcula um offset Y aleatório para cada tile
+            // A variação é centralizada em torno de 0, indo de -amplitude/2 a +amplitude/2
+            const randomYOffset = (Math.random() * grassUnevenAmplitude) - (grassUnevenAmplitude / 2);
+
+            // A posição Y final do topo da imagem da grama para esta tile
+            let currentGrassY = baseGrassTopY + randomYOffset;
+
+            // Clampa a posição Y para garantir que a grama não vá muito alto ou muito baixo
+            currentGrassY = Math.max(baseGrassTopY - (grassUnevenAmplitude / 2), currentGrassY);
+            currentGrassY = Math.min(GAME_HEIGHT - grassTextureHeight, currentGrassY);
+            
+            ctx.drawImage(grassImage, x, currentGrassY, grassTextureWidth, grassTextureHeight);
+        }
     } else {
-        // Fallback para cor sólida se a imagem da grama não carregar
+        // Fallback original para cor sólida se a imagem da grama não carregar
         ctx.fillStyle = '#7CFC00'; // Lawn Green
-        ctx.fillRect(0, grassY, GAME_WIDTH, grassHeight);
+        ctx.fillRect(0, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO), GAME_WIDTH, GAME_HEIGHT * GRASS_HEIGHT_RATIO);
     }
     // --- Fim do Desenho do Background ---
 
