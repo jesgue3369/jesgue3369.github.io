@@ -410,10 +410,10 @@ function drawPoisonClouds() {
 }
 
 function updateHUD() {
-    hudHealthValue.textContent = `<span class="math-inline">\{player\.health\}/</span>{player.maxHealth}${player.shield > 0 ? ` (+${player.shield})` : ''}`;
-    hudManaValue.textContent = `<span class="math-inline">\{player\.mana\.toFixed\(0\)\}/</span>{player.maxMana.toFixed(0)}`;
+    hudHealthValue.textContent = `${player.health}/${player.maxHealth}${player.shield > 0 ? ` (+${player.shield})` : ''}`;
+    hudManaValue.textContent = `${player.mana.toFixed(0)}/${player.maxMana.toFixed(0)}`;
     hudLevelValue.textContent = player.level;
-    hudXpValue.textContent = `<span class="math-inline">\{player\.xp\}/</span>{player.xpToNextLevel}`;
+    hudXpValue.textContent = `${player.xp}/${player.xpToNextLevel}`;
     hudSpellName.textContent = player.activeSpells[player.currentSpellIndex];
     hudSkillPointsValue.textContent = player.skillPoints;
 }
@@ -1073,4 +1073,114 @@ castSpellBtn.addEventListener('click', (e) => {
 prevSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
     if (!gamePaused) {
-        player.currentSpellIndex = (player.currentSpellIndex - 1 + player.activeSpells.length) % player.active
+        player.currentSpellIndex = (player.currentSpellIndex - 1 + player.activeSpells.length) % player.activeSpells.length;
+        updateHUD();
+    }
+});
+
+nextSpellBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!gamePaused) {
+        player.currentSpellIndex = (player.currentSpellIndex + 1) % player.activeSpells.length;
+        updateHUD();
+    }
+});
+
+// Verificação se os elementos existem antes de adicionar event listeners
+if (openSkillsBtn) {
+    console.log("Botão 'Habilidades' (openSkillsBtn) encontrado.");
+    openSkillsBtn.addEventListener('click', toggleSkillTree);
+} else {
+    console.error("Erro: Botão 'Habilidades' com ID 'open-skills-btn' não encontrado no HTML!");
+}
+
+if (closeSkillTreeBtn) {
+    console.log("Botão 'Fechar Habilidades' (closeSkillTreeBtn) encontrado.");
+    closeSkillTreeBtn.addEventListener('click', toggleSkillTree);
+} else {
+    console.error("Erro: Botão 'Fechar Árvore de Habilidades' com ID 'close-skill-tree' não encontrado no HTML!");
+}
+
+
+unlockSkillButtons.forEach(button => {
+    button.addEventListener('click', () => {
+        const skillId = button.dataset.skillId;
+        unlockSkill(skillId);
+    });
+});
+
+restartGameBtn.addEventListener('click', restartGame);
+
+
+// --- Loop Principal do Jogo ---
+let lastFrameTime = 0;
+function gameLoop(currentTime) {
+    if (gameOver || gamePaused) {
+        return;
+    }
+
+    const deltaTime = currentTime - lastFrameTime;
+    lastFrameTime = currentTime;
+
+    // Atualiza o offset da animação do jogador
+    playerAnimationOffset = PLAYER_ANIMATION_AMPLITUDE * Math.sin(Date.now() * PLAYER_ANIMATION_SPEED * 0.001);
+
+    ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    // --- Desenha o Background ---
+    // Desenha o céu (cor sólida)
+    ctx.fillStyle = '#87CEEB'; // Light sky blue
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO)); // Porção do céu
+
+    // Desenha a grama texturizada (sem variação de altura na linha superior)
+    const grassImage = loadedAssets.background_grass;
+
+    if (grassImage && grassImage.complete) {
+        // Define a linha Y onde a grama começa
+        const grassStartY = GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO);
+        const grassSectionHeight = GAME_HEIGHT - grassStartY;
+
+        // Desenha a grama como um padrão repetitivo para preencher toda a área
+        const pattern = ctx.createPattern(grassImage, 'repeat');
+        ctx.fillStyle = pattern;
+        ctx.fillRect(0, grassStartY, GAME_WIDTH, grassSectionHeight);
+    } else {
+        // Fallback para cor sólida se a imagem da grama não carregar
+        ctx.fillStyle = '#7CFC00'; // Lawn Green
+        ctx.fillRect(0, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO), GAME_WIDTH, GAME_HEIGHT * GRASS_HEIGHT_RATIO);
+    }
+    // --- Fim do Desenho do Background ---
+
+    // Lógica e desenho das nuvens (elas devem aparecer sobre o céu, mas abaixo dos monstros/jogador)
+    spawnClouds();
+    moveClouds();
+    drawClouds();
+
+    movePlayer();
+    spawnMonster();
+    moveMonsters();
+    moveSpells();
+    moveMonsterProjectiles();
+    checkCollisions();
+    regenerateMana();
+
+    // Desenha o jogador, monstros, spells, etc. depois do background e nuvens
+    drawPlayer();
+    drawMonsters();
+    drawSpells();
+    drawMonsterProjectiles();
+    drawPoisonClouds();
+    updateHUD();
+
+    requestAnimationFrame(gameLoop);
+}
+
+// --- Iniciar o Jogo ---
+loadAssets().then(() => {
+    console.log("Todos os assets carregados! Iniciando o jogo...");
+    updateHUD();
+    updateUnlockSkillButtons();
+    requestAnimationFrame(gameLoop);
+}).catch(error => {
+    console.error("Erro ao carregar assets:", error);
+});
