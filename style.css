@@ -1,365 +1,106 @@
 body {
     margin: 0;
-    overflow: hidden;
+    overflow: hidden; /* Evita barras de rolagem */
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background-color: #222;
-    font-family: 'Arial', sans-serif;
-    color: #eee;
-    -webkit-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
+    background-color: #222; /* Fundo geral do body */
+    font-family: Arial, sans-serif;
+    color: white;
 }
 
 #game-container {
     position: relative;
     width: 100vw;
     height: 100vh;
-    max-width: 800px; /* Mantém para desktop/proporções */
-    max-height: 600px; /* Mantém para desktop/proporções */
-    border: 2px solid #555;
-    background-color: #000;
+    max-width: 800px; /* Limite a largura do jogo para desktop */
+    max-height: 600px; /* Limite a altura do jogo para desktop */
     overflow: hidden;
-    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+    background-color: #000; /* Fundo padrão enquanto não carrega imagem */
+    border: 2px solid #555;
+    display: flex; /* Para flexbox interno */
+    flex-direction: column; /* Organiza canvas e controles verticalmente */
 }
 
-/* O Canvas agora tem a altura ajustada para o espaço acima da barra de controle */
-#gameCanvas {
-    background-color: #1a1a2e; /* Céu noturno */
-    display: block;
-    position: absolute;
+/* Esconde todas as telas de jogo por padrão */
+.game-screen {
+    position: absolute; /* Permite sobreposição */
     top: 0;
     left: 0;
     width: 100%;
-    height: calc(100% - 100px); /* Ajuste: 100px para a altura da barra de controle */
-    z-index: 1; /* Para que o game content esteja abaixo do HUD e controles */
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9); /* Fundo semi-transparente para telas de menu/game over */
+    display: flex; /* Para centralizar conteúdo */
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    z-index: 10; /* Garante que fiquem acima do canvas */
+    box-sizing: border-box; /* Inclui padding e border na largura/altura */
+    padding: 20px;
+    transition: opacity 0.3s ease-in-out; /* Transição suave */
+    opacity: 0;
+    pointer-events: none; /* Não permite interação quando invisível */
 }
 
-/* NOVO: Barra de controle inferior */
-#controller-bar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 100px; /* Altura fixa para a barra */
-    background-color: rgba(50, 50, 50, 0.8); /* Cinza escuro translúcido */
-    display: flex;
-    justify-content: space-between; /* Espaço entre os grupos de botões */
-    align-items: center;
-    padding: 0 20px; /* Padding nas laterais */
-    z-index: 50; /* Z-index alto para ficar por cima do canvas */
-    box-sizing: border-box; /* Para padding não aumentar a largura */
+/* Mostra a tela ativa */
+.game-screen.active {
+    opacity: 1;
+    pointer-events: auto; /* Permite interação quando visível */
+}
+
+#game-content {
+    background-color: transparent; /* O canvas terá o fundo da imagem */
+    flex-grow: 1; /* Preenche o espaço disponível acima dos controles */
+    display: block; /* Garante que o canvas possa ser renderizado */
+    position: relative; /* Permite posicionamento do HUD */
+}
+
+
+#gameCanvas {
+    display: block; /* Remove espaço extra abaixo do canvas */
+    background-color: #000; /* Fallback para canvas, se a imagem não carregar */
 }
 
 #hud {
     position: absolute;
-    top: 10px; /* Usar px para um posicionamento mais estável no topo */
-    left: 10px;
-    color: white;
-    font-size: 0.9em; /* Ajustado para um tamanho razoável */
+    top: 5px;
+    left: 5px;
     display: flex;
-    flex-direction: column;
-    gap: 3px;
-    background-color: rgba(0, 0, 0, 0.6);
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    z-index: 20; /* HUD deve ficar acima de tudo no topo */
-}
-
-@media (min-width: 768px) {
-    #hud {
-        font-size: 0.9em;
-        top: 10px;
-        left: 10px;
-        gap: 3px;
-        padding: 8px 12px;
-    }
-}
-
-.bar {
-    padding: 3px 8px;
-    border-radius: 3px;
-    min-width: 120px;
-    white-space: nowrap;
-}
-
-#health-bar {
-    background-color: rgba(200, 0, 0, 0.7);
-}
-
-#mana-bar {
-    background-color: rgba(0, 0, 200, 0.7);
-}
-
-#level, #xp, #current-spell, #skill-points {
+    flex-wrap: wrap;
+    gap: 10px;
     background-color: rgba(0, 0, 0, 0.5);
-    padding: 3px 8px;
-    border-radius: 3px;
-}
-
-/* --- Controle de Botões --- */
-.control-btn {
-    background-color: rgba(0, 123, 255, 0.7);
-    color: white;
-    border: none;
-    padding: 12px 25px; /* Tamanho reduzido para todos os botões */
-    border-radius: 8px; /* Borda um pouco menor */
-    cursor: pointer;
-    font-size: 1.1em; /* Tamanho da fonte padrão */
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
-    transition: background-color 0.2s;
-    -webkit-tap-highlight-color: transparent;
-    z-index: 20; /* Z-index para botões estarem acima do canvas e barra */
-}
-
-.control-btn:active {
-    background-color: rgba(0, 86, 179, 0.9);
-}
-
-/* Botões de Movimento (agora dentro de #controller-bar) */
-#move-controls {
-    display: flex;
-    gap: 15px;
-    /* Remover position absolute, bottom, left */
-}
-
-.move-btn {
-    padding: 15px 30px; /* Pouco maiores para facilitar o toque */
-    font-size: 1.2em;
-}
-
-/* Botão de Lançar Magia (agora dentro de #controller-bar) */
-#cast-spell-btn {
-    /* Remover position absolute, bottom, right */
-    padding: 15px 30px;
-    font-size: 1.2em;
-    background-color: rgba(255, 69, 0, 0.7);
-}
-#cast-spell-btn:active {
-    background-color: rgba(200, 50, 0, 0.9);
-}
-
-/* Grupo para os botões superiores à direita */
-#top-right-controls {
-    position: absolute;
-    top: 10px; /* Alinhado com o HUD */
-    right: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px; /* Espaçamento entre os botões */
-    z-index: 20;
-}
-
-/* Botão de Habilidades/Menu (tamanho padrão .control-btn) */
-#open-skills-btn {
-    background-color: rgba(30, 144, 255, 0.7);
-}
-#open-skills-btn:active {
-    background-color: rgba(20, 100, 200, 0.9);
-}
-
-/* Botões de Trocar Magia (dentro de #top-right-controls, tamanho padrão .control-btn) */
-#spell-swap-controls {
-    display: flex;
-    gap: 10px;
-}
-
-
-/* Esconde controles mobile no desktop */
-@media (min-width: 768px) {
-    #controller-bar, /* Esconde a barra de controle inteira */
-    #top-right-controls { /* Esconde o grupo de controle superior */
-        display: none;
-    }
-
-    #gameCanvas { /* No desktop, o canvas volta a ocupar 100% da altura */
-        height: 100%;
-    }
-
-    #open-skills-btn { /* Reposiciona para desktop (se necessário, ou manter hide) */
-        bottom: 10px;
-        right: 10px;
-        top: auto;
-        padding: 10px 15px;
-        font-size: 1em;
-        display: block; /* Garante que reapareça no desktop se desejar */
-        position: absolute; /* Volta para absoluto no desktop */
-    }
-}
-
-
-/* Árvore de Habilidades (ajustada para px/em em vez de vmin para consistência com mobile controls) */
-#skill-tree {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.95);
-    border: 2px solid #0f0;
-    padding: 20px; /* Padding fixo */
-    border-radius: 10px;
-    color: white;
-    z-index: 100;
-    width: 90vw;
-    max-width: 600px;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 0 25px rgba(0, 255, 0, 0.7);
-    font-size: 1.1em; /* Ajuste do tamanho da fonte */
-}
-
-@media (min-width: 768px) {
-    #skill-tree {
-        padding: 20px;
-        width: 600px;
-        max-height: 500px;
-        font-size: 1em;
-    }
-}
-
-#skill-tree h2 {
-    text-align: center;
-    margin-bottom: 15px; /* Margem fixa */
-    color: #0f0;
-    font-size: 1.8em;
-}
-
-@media (min-width: 768px) {
-    #skill-tree h2 {
-        font-size: 1.8em;
-        margin-bottom: 20px;
-    }
-}
-
-.skill-category {
-    margin-bottom: 15px;
-    border: 1px solid #333;
-    padding: 10px;
-    border-radius: 6px;
-    background-color: rgba(30, 30, 30, 0.7);
-}
-
-@media (min-width: 768px) {
-    .skill-category {
-        margin-bottom: 15px;
-        padding: 8px;
-    }
-}
-
-.skill-category h3 {
-    margin-top: 0;
-    color: #0ff;
-    font-size: 1.3em;
-    border-bottom: 1px dashed #0ff;
-    padding-bottom: 5px;
-    margin-bottom: 10px;
-}
-
-@media (min-width: 768px) {
-    .skill-category h3 {
-        font-size: 1.3em;
-        padding-bottom: 5px;
-        margin-bottom: 10px;
-    }
-}
-
-.skill-node {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-    background-color: rgba(50, 50, 50, 0.7);
     padding: 8px;
-    border-radius: 4px;
-    transition: background-color 0.2s;
+    border-radius: 5px;
+    font-size: 0.9em;
+    z-index: 5; /* Abaixo das telas de menu */
 }
 
-@media (min-width: 768px) {
-    .skill-node {
-        gap: 8px;
-        margin-bottom: 8px;
-        padding: 6px;
-    }
-}
-
-.skill-node img {
-    border: 1px solid #666;
+.hud-item {
+    padding: 2px 5px;
+    border: 1px solid #777;
     border-radius: 3px;
-    width: 40px; /* Tamanho fixo para ícones */
-    height: 40px;
-    flex-shrink: 0;
+    white-space: nowrap; /* Evita quebras de linha */
 }
 
-@media (min-width: 768px) {
-    .skill-node img {
-        width: 32px;
-        height: 32px;
-    }
-}
-
-.skill-node p {
-    margin: 0;
-    font-size: 1em;
-    flex-grow: 1;
-}
-
-@media (min-width: 768px) {
-    .skill-node p {
-        font-size: 0.9em;
-    }
-}
-
-.skill-node button {
-    background-color: #0a0;
+#open-skills-btn {
+    background-color: #007bff;
     color: white;
     border: none;
-    padding: 8px 15px;
+    padding: 5px 10px;
     border-radius: 5px;
     cursor: pointer;
-    font-size: 0.9em;
-    margin-left: auto;
-    transition: background-color 0.2s;
+    font-size: 0.8em;
 }
 
-@media (min-width: 768px) {
-    .skill-node button {
-        padding: 5px 10px;
-        font-size: 0.85em;
-    }
+#open-skills-btn:hover {
+    background-color: #0056b3;
 }
 
-.skill-node button:hover:not(:disabled) {
-    background-color: #0c0;
-}
 
-.skill-node button:disabled {
-    background-color: #555;
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-#close-skill-tree {
-    position: relative; /* Ajustar se for dentro de um flex/grid */
-    display: block; /* Ocupar a largura se dentro de um flex col */
-    margin: 20px auto 0 auto; /* Centralizar e dar margem superior */
-    padding: 12px 25px;
-    font-size: 1.2em;
-    z-index: 110;
-}
-
-@media (min-width: 768px) {
-    #close-skill-tree {
-        bottom: 20px;
-        padding: 10px 15px;
-        font-size: 1em;
-    }
-}
-
-#game-over-screen {
+/* Skill Tree */
+#skill-tree {
     position: absolute;
     top: 0;
     left: 0;
@@ -368,74 +109,222 @@ body {
     background-color: rgba(0, 0, 0, 0.9);
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
-    color: white;
-    font-size: 1.8em;
-    text-align: center;
-    z-index: 101;
-    border-radius: 0;
+    padding: 20px;
+    box-sizing: border-box;
+    z-index: 20; /* Acima de todas as outras telas quando ativa */
+    overflow-y: auto; /* Permite rolagem se o conteúdo for grande */
 }
 
-@media (min-width: 768px) {
-    #game-over-screen {
-        font-size: 2.2em;
-        border-radius: 10px;
-    }
+#skill-tree.hidden {
+    display: none;
+}
+
+#skill-tree h2 {
+    margin-bottom: 20px;
+    color: #ffd700;
+}
+
+.skill-category {
+    width: 90%;
+    max-width: 600px;
+    margin-bottom: 20px;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 15px;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.skill-category h3 {
+    margin-top: 0;
+    color: #aaddff;
+}
+
+.skills-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.skill-item {
+    background-color: #333;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #666;
+}
+
+.skill-item button {
+    margin-top: 5px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+    width: 100%;
+}
+
+.skill-item button:hover:not(:disabled) {
+    background-color: #218838;
+}
+
+.skill-item button:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+
+.skill-item button.unlocked {
+    background-color: #007bff; /* Cor para desbloqueado */
+}
+
+#close-skill-tree {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 20px;
+    font-size: 1em;
+}
+
+#close-skill-tree:hover {
+    background-color: #c82333;
+}
+
+/* Game Over Screen */
+#game-over-screen {
+    background-color: rgba(139, 0, 0, 0.9); /* Vermelho escuro para game over */
 }
 
 #game-over-screen h2 {
-    color: #f00;
-    margin-bottom: 20px;
-    font-size: 2.5em;
-}
-
-@media (min-width: 768px) {
-    #game-over-screen h2 {
-        font-size: 1.5em;
-        margin-bottom: 20px;
-    }
+    color: #ffcccc;
+    font-size: 2em;
+    margin-bottom: 10px;
 }
 
 #game-over-screen p {
     font-size: 1.2em;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
 }
 
-@media (min-width: 768px) {
-    #game-over-screen p {
-        font-size: 0.7em;
-        margin-bottom: 30px;
-    }
+#restart-game {
+    background-color: #ffc107;
+    color: #333;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.1em;
 }
 
-#game-over-screen button {
-    background-color: #dc3545;
+#restart-game:hover {
+    background-color: #e0a800;
+}
+
+
+/* Mobile Controls */
+#mobile-controls-bar {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    height: 100px; /* Altura fixa para a barra de controle */
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 10px 0;
+    box-sizing: border-box;
+    z-index: 10; /* Acima do canvas */
+}
+
+#mobile-controls-bar button {
+    background-color: #4CAF50; /* Green */
+    border: none;
+    color: white;
+    padding: 15px 25px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 18px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+    flex-grow: 1; /* Faz os botões crescerem para preencher o espaço */
+    margin: 0 5px; /* Espaçamento entre os botões */
+}
+
+#mobile-controls-bar button:active {
+    background-color: #45a049;
+}
+
+/* Specific button styling for prev/next spell */
+#prev-spell-btn, #next-spell-btn {
+    background-color: #008CBA; /* Blue */
+}
+#prev-spell-btn:active, #next-spell-btn:active {
+    background-color: #007bb5;
+}
+
+#cast-spell-btn {
+    background-color: #f44336; /* Red */
+}
+#cast-spell-btn:active {
+    background-color: #da190b;
+}
+
+/* Main Menu Button */
+#main-menu-screen button {
+    background-color: #4CAF50;
     color: white;
     border: none;
     padding: 15px 30px;
-    border-radius: 8px;
+    font-size: 1.5em;
+    border-radius: 10px;
     cursor: pointer;
-    font-size: 1.2em;
-    margin-top: 20px;
-    transition: background-color 0.2s;
+    margin-top: 30px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
-@media (min-width: 768px) {
-    #game-over-screen button {
-        padding: 15px 30px;
-        font-size: 1.2em;
-        margin-top: 20px;
-    }
+#main-menu-screen button:hover {
+    background-color: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.3);
 }
 
-.hidden {
-    display: none !important;
-}
-
-@media (max-width: 767px) {
+/* Responsividade básica para telas menores */
+@media (max-width: 600px) {
     #game-container {
-        border: none;
-        border-radius: 0;
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+    }
+
+    #hud {
+        font-size: 0.8em;
+        padding: 5px;
+        gap: 5px;
+    }
+
+    #open-skills-btn {
+        padding: 4px 8px;
+        font-size: 0.7em;
+    }
+
+    .skill-item button {
+        font-size: 0.7em;
+        padding: 4px 6px;
+    }
+
+    #mobile-controls-bar button {
+        padding: 10px 15px;
+        font-size: 16px;
     }
 }
