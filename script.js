@@ -19,7 +19,7 @@ const restartGameBtn = document.getElementById('restart-game');
 // Botões de controle mobile
 const moveLeftBtn = document.getElementById('move-left-btn');
 const moveRightBtn = document.getElementById('move-right-btn');
-const castSpellBtn = document.getElementById('cast-spell-btn');
+const castSpellBtn = document = document.getElementById('cast-spell-btn');
 const prevSpellBtn = document.getElementById('prev-spell-btn');
 const nextSpellBtn = document.getElementById('next-spell-btn');
 
@@ -93,10 +93,10 @@ const PLAYER_ANIMATION_AMPLITUDE = 5;
 const PLAYER_ANIMATION_SPEED = 5;
 
 // NOVAS VARIÁVEIS PARA BACKGROUND E NUVENS
-const GRASS_HEIGHT_RATIO = 0.3; // 30% da altura da tela para a grama
+const GRASS_HEIGHT_RATIO = 0.25; // Reduzido para 25% da altura da tela para a grama (começa mais baixo)
 let clouds = [];
 const CLOUD_SPAWN_INTERVAL = 8000; // Tempo em ms para spawnar uma nova nuvem
-const BASE_CLOUD_SPEED = 0.5; // Velocidade base das nuvens
+const BASE_CLOUD_SPEED = 1.0; // Velocidade base das nuvens aumentada
 let lastCloudSpawnTime = 0;
 
 
@@ -410,10 +410,10 @@ function drawPoisonClouds() {
 }
 
 function updateHUD() {
-    hudHealthValue.textContent = `${player.health}/${player.maxHealth}${player.shield > 0 ? ` (+${player.shield})` : ''}`;
-    hudManaValue.textContent = `${player.mana.toFixed(0)}/${player.maxMana.toFixed(0)}`;
+    hudHealthValue.textContent = `<span class="math-inline">\{player\.health\}/</span>{player.maxHealth}${player.shield > 0 ? ` (+${player.shield})` : ''}`;
+    hudManaValue.textContent = `<span class="math-inline">\{player\.mana\.toFixed\(0\)\}/</span>{player.maxMana.toFixed(0)}`;
     hudLevelValue.textContent = player.level;
-    hudXpValue.textContent = `${player.xp}/${player.xpToNextLevel}`;
+    hudXpValue.textContent = `<span class="math-inline">\{player\.xp\}/</span>{player.xpToNextLevel}`;
     hudSpellName.textContent = player.activeSpells[player.currentSpellIndex];
     hudSkillPointsValue.textContent = player.skillPoints;
 }
@@ -451,14 +451,16 @@ function spawnClouds() {
         const cloudHeight = cloudWidth * (cloudImage.height / cloudImage.width); // Manter proporção
         const y = Math.random() * (GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO) - cloudHeight - 20); // Spawn na área do céu, com margem
         const x = GAME_WIDTH; // Começa fora da tela, à direita
-        const speed = BASE_CLOUD_SPEED + Math.random() * 0.5; // Velocidade ligeiramente variável
+        const speed = BASE_CLOUD_SPEED + Math.random() * 1.0; // Velocidade ligeiramente variável, com base mais alta
+        const opacity = 0.5 + Math.random() * 0.3; // Opacidade variando entre 0.5 e 0.8
 
         clouds.push({
             x: x,
             y: y,
             width: cloudWidth,
             height: cloudHeight,
-            speed: speed
+            speed: speed,
+            opacity: opacity
         });
         lastCloudSpawnTime = now;
     }
@@ -477,7 +479,10 @@ function drawClouds() {
     const cloudImage = loadedAssets.cloud;
     if (cloudImage && cloudImage.complete) {
         clouds.forEach(cloud => {
+            ctx.save(); // Salva o estado atual do contexto
+            ctx.globalAlpha = cloud.opacity; // Define a opacidade
             ctx.drawImage(cloudImage, cloud.x, cloud.y, cloud.width, cloud.height);
+            ctx.restore(); // Restaura o estado anterior do contexto
         });
     }
 }
@@ -1068,133 +1073,4 @@ castSpellBtn.addEventListener('click', (e) => {
 prevSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
     if (!gamePaused) {
-        player.currentSpellIndex = (player.currentSpellIndex - 1 + player.activeSpells.length) % player.activeSpells.length;
-        updateHUD();
-    }
-});
-
-nextSpellBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    if (!gamePaused) {
-        player.currentSpellIndex = (player.currentSpellIndex + 1) % player.activeSpells.length;
-        updateHUD();
-    }
-});
-
-// Verificação se os elementos existem antes de adicionar event listeners
-if (openSkillsBtn) {
-    console.log("Botão 'Habilidades' (openSkillsBtn) encontrado.");
-    openSkillsBtn.addEventListener('click', toggleSkillTree);
-} else {
-    console.error("Erro: Botão 'Habilidades' com ID 'open-skills-btn' não encontrado no HTML!");
-}
-
-if (closeSkillTreeBtn) {
-    console.log("Botão 'Fechar Habilidades' (closeSkillTreeBtn) encontrado.");
-    closeSkillTreeBtn.addEventListener('click', toggleSkillTree);
-} else {
-    console.error("Erro: Botão 'Fechar Árvore de Habilidades' com ID 'close-skill-tree' não encontrado no HTML!");
-}
-
-
-unlockSkillButtons.forEach(button => {
-    button.addEventListener('click', () => {
-        const skillId = button.dataset.skillId;
-        unlockSkill(skillId);
-    });
-});
-
-restartGameBtn.addEventListener('click', restartGame);
-
-
-// --- Loop Principal do Jogo ---
-let lastFrameTime = 0;
-function gameLoop(currentTime) {
-    if (gameOver || gamePaused) {
-        return;
-    }
-
-    const deltaTime = currentTime - lastFrameTime;
-    lastFrameTime = currentTime;
-
-    // Atualiza o offset da animação do jogador
-    playerAnimationOffset = PLAYER_ANIMATION_AMPLITUDE * Math.sin(Date.now() * PLAYER_ANIMATION_SPEED * 0.001);
-
-    ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-    // --- Desenha o Background ---
-    // Desenha o céu (cor sólida)
-    ctx.fillStyle = '#87CEEB'; // Light sky blue
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO));
-
-    // Desenha a grama texturizada com variação de altura
-    const grassImage = loadedAssets.background_grass;
-    const grassUnevenAmplitude = 20; // Variação de altura em pixels (+/- 10 pixels do centro)
-
-    if (grassImage && grassImage.complete) {
-        const grassTextureWidth = grassImage.width;
-        const grassTextureHeight = grassImage.height;
-
-        // Define a linha base onde a grama deveria começar (topo da seção de grama, sem variação)
-        const baseGrassTopY = GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO);
-
-        // Preenche a área abaixo da linha de base com uma cor sólida da grama
-        // Isso ajuda a evitar lacunas visíveis se a imagem da grama for pequena ou a variação for grande.
-        ctx.fillStyle = '#7CFC00'; // Uma cor base de grama sólida (Lawn Green)
-        ctx.fillRect(0, baseGrassTopY, GAME_WIDTH, GAME_HEIGHT - baseGrassTopY);
-
-        // Desenha as tiles de grama na linha superior com variação de altura
-        for (let x = 0; x < GAME_WIDTH; x += grassTextureWidth) {
-            // Calcula um offset Y aleatório para cada tile
-            // A variação é centralizada em torno de 0, indo de -amplitude/2 a +amplitude/2
-            const randomYOffset = (Math.random() * grassUnevenAmplitude) - (grassUnevenAmplitude / 2);
-
-            // A posição Y final do topo da imagem da grama para esta tile
-            let currentGrassY = baseGrassTopY + randomYOffset;
-
-            // Clampa a posição Y para garantir que a grama não vá muito alto ou muito baixo
-            currentGrassY = Math.max(baseGrassTopY - (grassUnevenAmplitude / 2), currentGrassY);
-            currentGrassY = Math.min(GAME_HEIGHT - grassTextureHeight, currentGrassY);
-            
-            ctx.drawImage(grassImage, x, currentGrassY, grassTextureWidth, grassTextureHeight);
-        }
-    } else {
-        // Fallback original para cor sólida se a imagem da grama não carregar
-        ctx.fillStyle = '#7CFC00'; // Lawn Green
-        ctx.fillRect(0, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO), GAME_WIDTH, GAME_HEIGHT * GRASS_HEIGHT_RATIO);
-    }
-    // --- Fim do Desenho do Background ---
-
-    // Lógica e desenho das nuvens (elas devem aparecer sobre o céu, mas abaixo dos monstros/jogador)
-    spawnClouds();
-    moveClouds();
-    drawClouds();
-
-    movePlayer();
-    spawnMonster();
-    moveMonsters();
-    moveSpells();
-    moveMonsterProjectiles();
-    checkCollisions();
-    regenerateMana();
-
-    // Desenha o jogador, monstros, spells, etc. depois do background e nuvens
-    drawPlayer();
-    drawMonsters();
-    drawSpells();
-    drawMonsterProjectiles();
-    drawPoisonClouds();
-    updateHUD();
-
-    requestAnimationFrame(gameLoop);
-}
-
-// --- Iniciar o Jogo ---
-loadAssets().then(() => {
-    console.log("Todos os assets carregados! Iniciando o jogo...");
-    updateHUD();
-    updateUnlockSkillButtons();
-    requestAnimationFrame(gameLoop);
-}).catch(error => {
-    console.error("Erro ao carregar assets:", error);
-});
+        player.currentSpellIndex = (player.currentSpellIndex - 1 + player.activeSpells.length) % player.active
