@@ -304,7 +304,8 @@ resizeCanvas();
 function drawPlayer() {
     const playerYAdjusted = player.y + playerAnimationOffset;
 
-    if (player.isTakingDamage && Math.floor(Date.now() / 100) % 2 === 0) { // Flash effect
+    // Apenas desenha o "flash" a cada 2 frames para um efeito piscante
+    if (player.isTakingDamage && Math.floor(Date.now() / player.damageFlashDuration) % 2 === 0) { 
         // Desenha o jogador em vermelho durante o flash
         ctx.fillStyle = '#f00';
         ctx.fillRect(player.x, playerYAdjusted, PLAYER_SIZE, PLAYER_SIZE);
@@ -451,6 +452,7 @@ function spawnClouds() {
     const now = Date.now();
     if (now - lastCloudSpawnTime > CLOUD_SPAWN_INTERVAL) {
         const cloudImage = loadedAssets.cloud;
+        // Verifica se a imagem da nuvem foi carregada
         if (!cloudImage || !cloudImage.complete) {
             lastCloudSpawnTime = now; // Tenta de novo no próximo ciclo se a imagem não estiver pronta
             return;
@@ -484,6 +486,7 @@ function moveClouds() {
 
 function drawClouds() {
     const cloudImage = loadedAssets.cloud;
+    // Verifica se a imagem da nuvem foi carregada antes de desenhar
     if (cloudImage && cloudImage.complete) {
         clouds.forEach(cloud => {
             ctx.drawImage(cloudImage, cloud.x, cloud.y, cloud.width, cloud.height);
@@ -1148,13 +1151,20 @@ function gameLoop(currentTime) {
     ctx.fillStyle = '#87CEEB'; // Light sky blue
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO)); // Porção do céu
 
+    // Lógica e desenho das nuvens (elas devem aparecer sobre o céu, mas abaixo dos monstros/jogador)
+    spawnClouds();
+    moveClouds();
+    drawClouds(); // Chamada para desenhar as nuvens
+
     // Desenha a grama texturizada (sem variação de altura na linha superior)
     const grassImage = loadedAssets.background_grass;
 
+    // Verifica se a imagem da grama foi carregada antes de desenhar
     if (grassImage && grassImage.complete) {
         const grassStartY = GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO);
         const grassSectionHeight = GAME_HEIGHT - grassStartY;
 
+        // Cria um padrão de repetição com a imagem da grama
         const pattern = ctx.createPattern(grassImage, 'repeat');
         ctx.fillStyle = pattern;
         ctx.fillRect(0, grassStartY, GAME_WIDTH, grassSectionHeight);
@@ -1165,10 +1175,6 @@ function gameLoop(currentTime) {
     }
     // --- Fim do Desenho do Background ---
 
-    // Lógica e desenho das nuvens (elas devem aparecer sobre o céu, mas abaixo dos monstros/jogador)
-    spawnClouds();
-    moveClouds();
-    drawClouds();
 
     movePlayer();
     spawnMonster();
