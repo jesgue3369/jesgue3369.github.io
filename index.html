@@ -1,139 +1,76 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mago Arcano: A Queda dos Monstros (Mobile)</title>
+    <title>Arcane Survival</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
+        <div id="main-menu-screen" class="game-screen active">
+            <h1>Arcane Survival</h1>
+            <button id="start-game-btn">Começar Jogo</button>
+            </div>
 
-        <div id="hud">
-            <div id="health-bar" class="bar">Vida: <span id="health-value">100</span></div>
-            <div id="mana-bar" class="bar">Mana: <span id="mana-value">100</span></div>
-            <div id="level">Nível: <span id="level-value">1</span></div>
-            <div id="xp">XP: <span id="xp-value">0/100</span></div>
-            <div id="current-spell">Magia Atual: <span id="spell-name">Fagulha</span></div>
-            <div id="skill-points">Pontos de Habilidade: <span id="skill-points-value">0</span></div>
+        <div id="game-over-screen" class="game-screen">
+            <h2>Game Over!</h2>
+            <p>Você foi derrotado pelos monstros.</p>
+            <button id="restart-game">Tentar Novamente</button>
         </div>
 
-        <div id="top-right-controls">
-            <button id="open-skills-btn" class="control-btn menu-btn">Habilidades</button>
-            <div id="spell-swap-controls">
-                <button id="prev-spell-btn" class="control-btn">&laquo;</button>
-                <button id="next-spell-btn" class="control-btn">&raquo;</button>
+        <div id="game-content" class="game-screen">
+            <canvas id="gameCanvas"></canvas>
+            <div id="hud">
+                <div class="hud-item">Vida: <span id="health-value">100/100</span></div>
+                <div class="hud-item">Mana: <span id="mana-value">100/100</span></div>
+                <div class="hud-item">Nível: <span id="level-value">1</span></div>
+                <div class="hud-item">XP: <span id="xp-value">0/100</span></div>
+                <div class="hud-item">Magia Atual: <span id="spell-name">Fagulha</span></div>
+                <div class="hud-item">Pontos de Habilidade: <span id="skill-points-value">0</span></div>
+                <button id="open-skills-btn">Habilidades</button>
+            </div>
+
+            <div id="skill-tree" class="hidden">
+                <h2>Árvore de Habilidades</h2>
+                <div class="skill-category">
+                    <h3>Magias Ativas</h3>
+                    <div class="skills-grid">
+                        <div class="skill-item">Bola de Fogo <button class="unlock-skill" data-skill-id="fireball"></button></div>
+                        <div class="skill-item">Estilhaço de Gelo <button class="unlock-skill" data-skill-id="ice-shard"></button></div>
+                        <div class="skill-item">Rajada Arcana <button class="unlock-skill" data-skill-id="arcane-blast"></button></div>
+                        <div class="skill-item">Cura Menor <button class="unlock-skill" data-skill-id="minor-heal"></button></div>
+                        <div class="skill-item">Escudo Arcano <button class="unlock-skill" data-skill-id="arcane-shield"></button></div>
+                        <div class="skill-item">Relâmpago <button class="unlock-skill" data-skill-id="lightning"></button></div>
+                        <div class="skill-item">Névoa Venenosa <button class="unlock-skill" data-skill-id="poison-mist"></button></div>
+                        <div class="skill-item">Explosão Congelante <button class="unlock-skill" data-skill-id="frost-explosion"></button></div>
+                        <div class="skill-item">Drenar Vida <button class="unlock-skill" data-skill-id="life-drain"></button></div>
+                        <div class="skill-item">Tempestade de Meteoros <button class="unlock-skill" data-skill-id="meteor-storm"></button></div>
+                    </div>
+                </div>
+                <div class="skill-category">
+                    <h3>Habilidades Passivas</h3>
+                    <div class="skills-grid">
+                        <div class="skill-item">Regen. de Mana Aprimorada <button class="unlock-skill" data-skill-id="mana-regen"></button></div>
+                        <div class="skill-item">Poder Mágico Aumentado <button class="unlock-skill" data-skill-id="spell-power"></button></div>
+                        <div class="skill-item">Aumento de Vida <button class="unlock-skill" data-skill-id="health-boost"></button></div>
+                        <div class="skill-item">Redução de Recarga <button class="unlock-skill" data-skill-id="cooldown-reduction"></button></div>
+                        <div class="skill-item">Chance Crítica <button class="unlock-skill" data-skill-id="critical-chance"></button></div>
+                        <div class="skill-item">Velocidade de Movimento <button class="unlock-skill" data-skill-id="movement-speed"></button></div>
+                    </div>
+                </div>
+                <button id="close-skill-tree">Fechar</button>
             </div>
         </div>
 
-        <div id="controller-bar">
-            <div id="move-controls">
-                <button id="move-left-btn" class="control-btn move-btn">&lt;</button>
-                <button id="move-right-btn" class="control-btn move-btn">&gt;</button>
-            </div>
-
-            <button id="cast-spell-btn" class="control-btn fire-btn">Magia</button>
-        </div>
-
-        <div id="skill-tree" class="hidden">
-            <h2>Árvore de Habilidades</h2>
-            <div class="skill-category">
-                <h3>Magias Ativas</h3>
-                <div class="skill-node" data-skill="fireball">
-                    <img src="https://via.placeholder.com/40/FFA500" alt="Bola de Fogo">
-                    <p>Bola de Fogo (1 SP)</p>
-                    <button class="unlock-skill" data-skill-id="fireball">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="ice-shard">
-                    <img src="https://via.placeholder.com/40/ADD8E6" alt="Estilhaço de Gelo">
-                    <p>Estilhaço de Gelo (1 SP)</p>
-                    <button class="unlock-skill" data-skill-id="ice-shard">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="arcane-blast">
-                    <img src="https://via.placeholder.com/40/8A2BE2" alt="Rajada Arcana">
-                    <p>Rajada Arcana (1 SP)</p>
-                    <button class="unlock-skill" data-skill-id="arcane-blast">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="minor-heal">
-                    <img src="https://via.placeholder.com/40/00FF00" alt="Cura Menor">
-                    <p>Cura Menor (2 SP)</p>
-                    <button class="unlock-skill" data-skill-id="minor-heal">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="arcane-shield">
-                    <img src="https://via.placeholder.com/40/00BFFF" alt="Escudo Arcano">
-                    <p>Escudo Arcano (2 SP)</p>
-                    <button class="unlock-skill" data-skill-id="arcane-shield">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="lightning">
-                    <img src="https://via.placeholder.com/40/FFFF33" alt="Relâmpago">
-                    <p>Relâmpago (3 SP)</p>
-                    <button class="unlock-skill" data-skill-id="lightning">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="poison-mist">
-                    <img src="https://via.placeholder.com/40/800080" alt="Névoa Venenosa">
-                    <p>Névoa Venenosa (3 SP)</p>
-                    <button class="unlock-skill" data-skill-id="poison-mist">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="frost-explosion">
-                    <img src="https://via.placeholder.com/40/B0E0E6" alt="Explosão Congelante">
-                    <p>Explosão Congelante (4 SP)</p>
-                    <button class="unlock-skill" data-skill-id="frost-explosion">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="life-drain">
-                    <img src="https://via.placeholder.com/40/8B0000" alt="Drenar Vida">
-                    <p>Drenar Vida (4 SP)</p>
-                    <button class="unlock-skill" data-skill-id="life-drain">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="meteor-storm">
-                    <img src="https://via.placeholder.com/40/CD5C5C" alt="Tempestade de Meteoros">
-                    <p>Tempestade de Meteoros (5 SP)</p>
-                    <button class="unlock-skill" data-skill-id="meteor-storm">Desbloquear</button>
-                </div>
-            </div>
-            <div class="skill-category">
-                <h3>Habilidades Passivas</h3>
-                <div class="skill-node" data-skill="mana-regen">
-                    <img src="https://via.placeholder.com/40/0000FF" alt="Mana Regen">
-                    <p>Regeneração de Mana Aprimorada (1 SP)</p>
-                    <button class="unlock-skill" data-skill-id="mana-regen">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="spell-power">
-                    <img src="https://via.placeholder.com/40/FFD700" alt="Spell Power">
-                    <p>Poder Mágico Aumentado (1 SP)</p>
-                    <button class="unlock-skill" data-skill-id="spell-power">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="health-boost">
-                    <img src="https://via.placeholder.com/40/DC143C" alt="Aumento de Vida">
-                    <p>Aumento de Vida (2 SP)</p>
-                    <button class="unlock-skill" data-skill-id="health-boost">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="cooldown-reduction">
-                    <img src="https://via.placeholder.com/40/20B2AA" alt="Redução de Recarga">
-                    <p>Redução de Recarga (3 SP)</p>
-                    <button class="unlock-skill" data-skill-id="cooldown-reduction">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="critical-chance">
-                    <img src="https://via.placeholder.com/40/FF4500" alt="Chance Crítica">
-                    <p>Chance Crítica (3 SP)</p>
-                    <button class="unlock-skill" data-skill-id="critical-chance">Desbloquear</button>
-                </div>
-                <div class="skill-node" data-skill="movement-speed">
-                    <img src="https://via.placeholder.com/40/7FFF00" alt="Velocidade de Movimento">
-                    <p>Velocidade de Movimento (2 SP)</p>
-                    <button class="unlock-skill" data-skill-id="movement-speed">Desbloquear</button>
-                </div>
-            </div>
-            <button id="close-skill-tree">Fechar</button>
-        </div>
-
-        <div id="game-over-screen" class="hidden">
-            <h2>Fim de Jogo!</h2>
-            <p>Os monstros dominaram o mundo...</p>
-            <button id="restart-game">Jogar Novamente</button>
+        <div id="mobile-controls-bar">
+            <button id="move-left-btn">←</button>
+            <button id="prev-spell-btn">⇦</button>
+            <button id="cast-spell-btn">Lançar</button>
+            <button id="next-spell-btn">⇨</button>
+            <button id="move-right-btn">→</button>
         </div>
     </div>
-
     <script src="script.js"></script>
 </body>
 </html>
