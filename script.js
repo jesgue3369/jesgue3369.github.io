@@ -16,6 +16,11 @@ const unlockSkillButtons = document.querySelectorAll('.unlock-skill');
 const gameOverScreen = document.getElementById('game-over-screen');
 const restartGameBtn = document.getElementById('restart-game');
 
+// NOVOS ELEMENTOS DO MENU
+const mainMenuScreen = document.getElementById('main-menu-screen');
+const startGameBtn = document.getElementById('start-game-btn');
+const gameContent = document.getElementById('game-content'); // Onde o canvas e HUD estão
+
 // Botões de controle mobile
 const moveLeftBtn = document.getElementById('move-left-btn');
 const moveRightBtn = document.getElementById('move-right-btn');
@@ -55,9 +60,7 @@ const ASSET_PATHS = {
     spell_fagulha: './assets/spell_fagulha.png',
     spell_bola_de_fogo: './assets/spell_bola_de_fogo.png',
     spell_estilhaco_de_gelo: './assets/spell_estilhaco_de_gelo.png',
-    // Novos assets para o background
-    background_grass: './assets/background_grass.png',
-    cloud: './assets/cloud.png'
+    background: './assets/background.png'
 };
 
 let loadedAssets = {};
@@ -65,43 +68,7 @@ let assetsLoadedCount = 0;
 let totalAssetsToLoad = Object.keys(ASSET_PATHS).length;
 
 // --- Estado do Jogo ---
-let player = {
-    x: 0,
-    y: 0,
-    health: 100,
-    maxHealth: 100,
-    mana: 100,
-    maxMana: 100,
-    level: 1,
-    xp: 0,
-    xpToNextLevel: LEVEL_UP_XP_BASE,
-    skillPoints: 0,
-    activeSpells: ['Fagulha'],
-    passiveSkills: [],
-    currentSpellIndex: 0,
-    spellPower: 1,
-    manaRegenRate: 0.1,
-    shield: 0,
-    cooldownReduction: 0,
-    criticalChance: 0,
-    movementSpeedBonus: 0,
-    isTakingDamage: false, 
-    damageFlashDuration: 100, 
-    damageFlashTimer: 0 
-};
-
-// --- Variáveis para animação do jogador e background ---
-let playerAnimationOffset = 0;
-const PLAYER_ANIMATION_AMPLITUDE = 5;
-const PLAYER_ANIMATION_SPEED = 5;
-
-const GRASS_HEIGHT_RATIO = 0.3; // 30% da altura da tela para a grama
-let clouds = [];
-const CLOUD_SPAWN_INTERVAL = 8000; // Tempo em ms para spawnar uma nova nuvem
-const BASE_CLOUD_SPEED = 0.5; // Velocidade base das nuvens
-let lastCloudSpawnTime = 0;
-
-
+let player; // Player será inicializado em resetGame()
 let monsters = [];
 let spells = [];
 let monsterProjectiles = [];
@@ -110,9 +77,16 @@ let keys = {};
 let isMovingLeft = false;
 let isMovingRight = false;
 let lastMonsterSpawnTime = 0;
-let gameOver = false;
-let gamePaused = false;
 let difficultyLevel = 1;
+
+// --- Gerenciamento de Estados do Jogo ---
+// Estados possíveis: 'MENU', 'PLAYING', 'PAUSED_SKILL_TREE', 'GAME_OVER', 'WAVE_COMPLETE', 'CARD_SELECTION'
+let gameState = 'MENU';
+
+// --- Novas variáveis para animação do jogador ---
+let playerAnimationOffset = 0;
+const PLAYER_ANIMATION_AMPLITUDE = 5;
+const PLAYER_ANIMATION_SPEED = 5;
 
 // --- Definições de Magias e Habilidades ---
 const spellsData = {
@@ -165,7 +139,9 @@ const monsterTypes = {
         canShoot: false,
         xp: 10,
         contactDamage: 10,
-        sprite: 'monster_basic'
+        sprite: 'monster_basic',
+        projectileSpeed: PROJECTILE_SPEED, // Adicionado
+        projectileSize: SPELL_SIZE / 2 // Adicionado
     },
     'tank': {
         color: '#8B4513',
@@ -176,7 +152,9 @@ const monsterTypes = {
         canShoot: false,
         xp: 30,
         contactDamage: 20,
-        sprite: 'monster_tank'
+        sprite: 'monster_tank',
+        projectileSpeed: PROJECTILE_SPEED,
+        projectileSize: SPELL_SIZE / 2
     },
     'shooter': {
         color: '#6A5ACD',
@@ -191,7 +169,9 @@ const monsterTypes = {
         lastShotTime: 0,
         xp: 20,
         contactDamage: 0,
-        sprite: 'monster_shooter'
+        sprite: 'monster_shooter',
+        projectileSpeed: PROJECTILE_SPEED,
+        projectileSize: SPELL_SIZE / 2
     },
     'fast': {
         color: '#00FFFF',
@@ -202,7 +182,9 @@ const monsterTypes = {
         canShoot: false,
         xp: 15,
         contactDamage: 8,
-        sprite: 'monster_fast'
+        sprite: 'monster_fast',
+        projectileSpeed: PROJECTILE_SPEED,
+        projectileSize: SPELL_SIZE / 2
     },
     'healer': {
         color: '#00FF00',
@@ -218,7 +200,9 @@ const monsterTypes = {
         healInterval: 1500,
         lastHealTime: 0,
         type: 'healer',
-        sprite: 'monster_healer'
+        sprite: 'monster_healer',
+        projectileSpeed: PROJECTILE_SPEED,
+        projectileSize: SPELL_SIZE / 2
     },
     'exploder': {
         color: '#FF4500',
@@ -231,7 +215,9 @@ const monsterTypes = {
         contactDamage: 30,
         explosionRadius: 80,
         type: 'exploder',
-        sprite: 'monster_exploder'
+        sprite: 'monster_exploder',
+        projectileSpeed: PROJECTILE_SPEED,
+        projectileSize: SPELL_SIZE / 2
     },
     'ghost': {
         color: 'rgba(255,255,255,0.4)',
@@ -244,7 +230,9 @@ const monsterTypes = {
         contactDamage: 12,
         evadeChance: 0.2,
         type: 'ghost',
-        sprite: 'monster_ghost'
+        sprite: 'monster_ghost',
+        projectileSpeed: PROJECTILE_SPEED,
+        projectileSize: SPELL_SIZE / 2
     },
     'giant_worm': {
         color: '#A52A2A',
@@ -252,11 +240,17 @@ const monsterTypes = {
         sizeMultiplier: 2.0,
         healthMultiplier: 5.0,
         speedMultiplier: 0.5,
-        canShoot: false,
+        canShoot: true, // Giant Worm pode atirar
+        projectileColor: 'brown',
+        projectileDamage: 25,
+        shootInterval: 3000,
+        lastShotTime: 0,
         xp: 50,
         contactDamage: 40,
         type: 'giant_worm',
-        sprite: 'monster_giant_worm'
+        sprite: 'monster_giant_worm',
+        projectileSpeed: PROJECTILE_SPEED * 0.5, // Projétil do gigante é mais lento
+        projectileSize: SPELL_SIZE * 1.5 // Projétil do gigante é maior
     }
 };
 
@@ -287,48 +281,52 @@ function loadAssets() {
 // --- Redimensionamento do Canvas ---
 function resizeCanvas() {
     const gameContainer = document.getElementById('game-container');
-    canvas.width = gameContainer.clientWidth;
-    canvas.height = gameContainer.clientHeight - CONTROLLER_BAR_HEIGHT;
+    // Ajusta o canvas para preencher o game-content, que está dentro do game-container
+    canvas.width = gameContent.clientWidth;
+    canvas.height = gameContent.clientHeight;
 
     GAME_WIDTH = canvas.width;
     GAME_HEIGHT = canvas.height;
 
-    player.x = GAME_WIDTH / 2 - PLAYER_SIZE / 2;
-    player.y = GAME_HEIGHT - PLAYER_SIZE - 20;
+    // Apenas ajuste a posição do jogador se o jogo estiver rodando
+    if (gameState === 'PLAYING' || gameState === 'PAUSED_SKILL_TREE') {
+        player.x = GAME_WIDTH / 2 - player.size / 2; // Usar player.size aqui
+        player.y = GAME_HEIGHT - player.size - 20; // Usar player.size aqui
+    }
 }
 
 window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+
+// --- Funções de Exibição de Telas ---
+function showScreen(screenElement) {
+    const screens = document.querySelectorAll('.game-screen');
+    screens.forEach(screen => {
+        screen.classList.remove('active');
+    });
+    screenElement.classList.add('active');
+}
 
 // --- Funções de Desenho ---
 function drawPlayer() {
     const playerYAdjusted = player.y + playerAnimationOffset;
-
-    // Apenas desenha o "flash" a cada 2 frames para um efeito piscante
-    if (player.isTakingDamage && Math.floor(Date.now() / player.damageFlashDuration) % 2 === 0) { 
-        // Desenha o jogador em vermelho durante o flash
-        ctx.fillStyle = '#f00';
-        ctx.fillRect(player.x, playerYAdjusted, PLAYER_SIZE, PLAYER_SIZE);
+    
+    if (loadedAssets.player && loadedAssets.player.complete) {
+        ctx.drawImage(loadedAssets.player, player.x, playerYAdjusted, player.size, player.size);
     } else {
-        // Desenha o jogador normalmente
-        if (loadedAssets.player && loadedAssets.player.complete) {
-            ctx.drawImage(loadedAssets.player, player.x, playerYAdjusted, PLAYER_SIZE, PLAYER_SIZE);
-        } else {
-            ctx.fillStyle = '#00f';
-            ctx.fillRect(player.x, playerYAdjusted, PLAYER_SIZE, PLAYER_SIZE);
-            ctx.fillStyle = 'white';
-            ctx.font = `${PLAYER_SIZE * 0.6}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('M', player.x + PLAYER_SIZE / 2, playerYAdjusted + PLAYER_SIZE / 2);
-        }
+        ctx.fillStyle = '#00f';
+        ctx.fillRect(player.x, playerYAdjusted, player.size, player.size);
+        ctx.fillStyle = 'white';
+        ctx.font = `${player.size * 0.6}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('M', player.x + player.size / 2, playerYAdjusted + player.size / 2);
     }
 
     if (player.shield > 0) {
         ctx.strokeStyle = 'cyan';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(player.x + PLAYER_SIZE / 2, playerYAdjusted + PLAYER_SIZE / 2, PLAYER_SIZE / 2 + 5, 0, Math.PI * 2);
+        ctx.arc(player.x + player.size / 2, playerYAdjusted + player.size / 2, player.size / 2 + 5, 0, Math.PI * 2);
         ctx.stroke();
     }
 }
@@ -395,8 +393,8 @@ function drawSpells() {
 }
 
 function drawMonsterProjectiles() {
-    const projectileSprite = loadedAssets.projectile_monster;
     monsterProjectiles.forEach(projectile => {
+        const projectileSprite = loadedAssets.projectile_monster; // Usar sprite genérico por enquanto, mudar se houver sprites específicos
         if (projectileSprite && projectileSprite.complete) {
             ctx.drawImage(projectileSprite, projectile.x - projectile.size / 2, projectile.y - projectile.size / 2, projectile.size, projectile.size);
         } else {
@@ -435,71 +433,22 @@ function movePlayer() {
     if (keys['ArrowLeft'] && player.x > 0) {
         player.x -= currentSpeed;
     }
-    if (keys['ArrowRight'] && player.x < GAME_WIDTH - PLAYER_SIZE) {
+    if (keys['ArrowRight'] && player.x < GAME_WIDTH - player.size) { // Usar player.size
         player.x += currentSpeed;
     }
 
     if (isMovingLeft && player.x > 0) {
         player.x -= currentSpeed;
     }
-    if (isMovingRight && player.x < GAME_WIDTH - PLAYER_SIZE) {
+    if (isMovingRight && player.x < GAME_WIDTH - player.size) { // Usar player.size
         player.x += currentSpeed;
     }
 }
 
-// --- Funções para Nuvens ---
-function spawnClouds() {
-    const now = Date.now();
-    if (now - lastCloudSpawnTime > CLOUD_SPAWN_INTERVAL) {
-        const cloudImage = loadedAssets.cloud;
-        // Verifica se a imagem da nuvem foi carregada
-        if (!cloudImage || !cloudImage.complete) {
-            lastCloudSpawnTime = now; // Tenta de novo no próximo ciclo se a imagem não estiver pronta
-            return;
-        }
-
-        const cloudWidth = 100 + Math.random() * 100; // Tamanho variável da nuvem
-        const cloudHeight = cloudWidth * (cloudImage.height / cloudImage.width); // Manter proporção
-        const y = Math.random() * (GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO) - cloudHeight - 20); // Spawn na área do céu, com margem
-        const x = GAME_WIDTH; // Começa fora da tela, à direita
-        const speed = BASE_CLOUD_SPEED + Math.random() * 0.5; // Velocidade ligeiramente variável
-
-        clouds.push({
-            x: x,
-            y: y,
-            width: cloudWidth,
-            height: cloudHeight,
-            speed: speed
-        });
-        lastCloudSpawnTime = now;
-    }
-}
-
-function moveClouds() {
-    for (let i = clouds.length - 1; i >= 0; i--) {
-        clouds[i].x -= clouds[i].speed;
-        if (clouds[i].x + clouds[i].width < 0) { // Se saiu da tela à esquerda
-            clouds.splice(i, 1);
-        }
-    }
-}
-
-function drawClouds() {
-    const cloudImage = loadedAssets.cloud;
-    // Verifica se a imagem da nuvem foi carregada antes de desenhar
-    if (cloudImage && cloudImage.complete) {
-        clouds.forEach(cloud => {
-            ctx.drawImage(cloudImage, cloud.x, cloud.y, cloud.width, cloud.height);
-        });
-    }
-}
-// --- Fim das Funções para Nuvens ---
-
-
 function spawnMonster() {
     const now = Date.now();
     if (now - lastMonsterSpawnTime > MONSTER_SPAWN_INTERVAL / difficultyLevel) {
-        const x = Math.random() * (GAME_WIDTH - INITIAL_MONSTER_SIZE);
+        const x = Math.random() * (GAME_WIDTH - INITIAL_MONSTER_SIZE); // Ainda usando INITIAL_MONSTER_SIZE para spawn inicial
 
         let monsterTypeKeys = Object.keys(monsterTypes);
         let availableTypes = monsterTypeKeys.filter(type =>
@@ -528,7 +477,8 @@ function spawnMonster() {
         }
 
         const typeData = monsterTypes[monsterTypeKey];
-        const monsterSize = INITIAL_MONSTER_SIZE * typeData.sizeMultiplier;
+        // Aplicar redução de 60% para player e monstros (40% do tamanho original)
+        const monsterSize = INITIAL_MONSTER_SIZE * typeData.sizeMultiplier * 0.4;
         const monsterHealth = 20 * difficultyLevel * typeData.healthMultiplier;
         const monsterSpeed = INITIAL_MONSTER_SPEED * (1 + (difficultyLevel - 1) * 0.1) * typeData.speedMultiplier;
 
@@ -541,7 +491,7 @@ function spawnMonster() {
             type: monsterTypeKey,
             color: typeData.color,
             initial: typeData.initial,
-            size: monsterSize,
+            size: monsterSize, // Tamanho final após redução
             canShoot: typeData.canShoot,
             projectileColor: typeData.projectileColor,
             projectileDamage: typeData.projectileDamage,
@@ -557,7 +507,10 @@ function spawnMonster() {
             evadeChance: typeData.evadeChance || 0,
             isSlowed: false,
             slowTimer: 0,
-            sprite: typeData.sprite
+            sprite: typeData.sprite,
+            projectileSpeed: typeData.projectileSpeed, // Usar velocidade do projétil do tipo de monstro
+            projectileSize: typeData.projectileSize, // Usar tamanho do projétil do tipo de monstro
+            targetY: GAME_HEIGHT * 0.3 + (Math.random() * GAME_HEIGHT * 0.2) // Voa até 30-50% da altura da tela
         });
         lastMonsterSpawnTime = now;
     }
@@ -571,27 +524,42 @@ function moveMonsters() {
             currentMonsterSpeed *= spellsData['Explosão Congelante'].slowFactor;
         }
 
-        monster.y += currentMonsterSpeed;
+        // Nova lógica de movimento: voa para baixo até certo ponto, depois horizontal
+        if (monster.y < monster.targetY) {
+            monster.y += currentMonsterSpeed;
+        } else {
+            // Uma vez que atingiu a altura alvo, move-se horizontalmente em direção ao player
+            const monsterCenterX = monster.x + monster.size / 2;
+            const playerCenterX = player.x + player.size / 2;
+
+            if (monsterCenterX < playerCenterX) {
+                monster.x += currentMonsterSpeed;
+            } else if (monsterCenterX > playerCenterX) {
+                monster.x -= currentMonsterSpeed;
+            }
+            // Não move mais verticalmente após atingir targetY
+        }
+
 
         if (monster.canShoot && now - monster.lastShotTime > monster.shootInterval && monster.y > 0 && monster.y < GAME_HEIGHT * 0.7) {
             const monsterCenterX = monster.x + monster.size / 2;
             const monsterCenterY = monster.y + monster.size / 2;
-            const playerCenterX = player.x + PLAYER_SIZE / 2;
-            const playerCenterY = player.y + PLAYER_SIZE / 2;
+            const playerCenterX = player.x + player.size / 2;
+            const playerCenterY = player.y + player.size / 2;
 
             const dx = playerCenterX - monsterCenterX;
             const dy = playerCenterY - monsterCenterY;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            const vx = (dx / distance) * PROJECTILE_SPEED;
-            const vy = (dy / distance) * PROJECTILE_SPEED;
+            const vx = (dx / distance) * monster.projectileSpeed; // Usar monster.projectileSpeed
+            const vy = (dy / distance) * monster.projectileSpeed; // Usar monster.projectileSpeed
 
             monsterProjectiles.push({
                 x: monsterCenterX,
                 y: monsterCenterY,
                 color: monster.projectileColor,
                 damage: monster.projectileDamage,
-                size: SPELL_SIZE / 2,
+                size: monster.projectileSize, // Usar monster.projectileSize
                 vx: vx,
                 vy: vy
             });
@@ -611,22 +579,24 @@ function moveMonsters() {
             monster.lastHealTime = now;
         }
 
+        // Se o monstro atingir a parte inferior da tela, ele some (ou causa dano e some)
         if (monster.y > GAME_HEIGHT) {
             if (monster.type === 'exploder') {
                 monsters.splice(index, 1);
                 return;
             }
 
-            if (monster.type !== 'shooter') {
+            if (monster.type !== 'shooter') { // Atacantes de contato ainda causam dano ao passar
                 takeDamage(monster.contactDamage);
             }
-            monsters.splice(index, 1);
+            monsters.splice(index, 1); // Remove o monstro
             if (player.health <= 0) {
                 endGame();
             }
         }
     });
 }
+
 
 function moveMonsterProjectiles() {
     monsterProjectiles.forEach((projectile, index) => {
@@ -649,7 +619,7 @@ function castSpell() {
         player.mana -= spellData.cost;
         spellLastCastTime[currentSpellName] = now;
 
-        const spellX = player.x + PLAYER_SIZE / 2;
+        const spellX = player.x + player.size / 2; // Usar player.size
         const spellY = player.y;
 
         let finalDamage = spellData.damage * player.spellPower;
@@ -787,15 +757,15 @@ function checkCollisions() {
     monsterProjectiles.forEach((projectile, projIndex) => {
         const projCenterX = projectile.x + projectile.size / 2;
         const projCenterY = projectile.y + projectile.size / 2;
-        const playerCenterX = player.x + PLAYER_SIZE / 2;
-        const playerCenterY = player.y + PLAYER_SIZE / 2;
+        const playerCenterX = player.x + player.size / 2; // Usar player.size
+        const playerCenterY = player.y + player.size / 2; // Usar player.size
 
         const dist = Math.sqrt(
             Math.pow(projCenterX - playerCenterX, 2) +
             Math.pow(projCenterY - playerCenterY, 2)
         );
 
-        if (dist < (projectile.size / 2 + PLAYER_SIZE / 2)) {
+        if (dist < (projectile.size / 2 + player.size / 2)) { // Usar player.size
             takeDamage(projectile.damage);
             monsterProjectiles.splice(projIndex, 1);
 
@@ -810,10 +780,11 @@ function checkCollisions() {
             return;
         }
 
+        // Colisão de contato com o jogador
         if (monster.y + monster.size > player.y &&
-            monster.y < player.y + PLAYER_SIZE &&
+            monster.y < player.y + player.size &&
             monster.x + monster.size > player.x &&
-            monster.x < player.x + PLAYER_SIZE) {
+            monster.x < player.x + player.size) {
 
             if (monster.type === 'exploder') {
                 takeDamage(monster.contactDamage);
@@ -862,10 +833,6 @@ function takeDamage(amount) {
         player.health -= amount;
     }
     if (player.health < 0) player.health = 0;
-
-    // Inicia o flash de dano
-    player.isTakingDamage = true;
-    player.damageFlashTimer = Date.now() + player.damageFlashDuration;
 }
 
 
@@ -898,15 +865,16 @@ function levelUp() {
 }
 
 function endGame() {
-    gameOver = true;
-    gamePaused = true;
-    gameOverScreen.classList.remove('hidden');
+    gameState = 'GAME_OVER';
+    showScreen(gameOverScreen);
 }
 
-function restartGame() {
+function resetGame() {
     player = {
-        x: GAME_WIDTH / 2 - PLAYER_SIZE / 2,
-        y: GAME_HEIGHT - PLAYER_SIZE - 20,
+        // Redução de 60% no tamanho do player (0.4 do original)
+        size: PLAYER_SIZE * 0.4,
+        x: GAME_WIDTH / 2 - (PLAYER_SIZE * 0.4) / 2, // Posicionar centralizado com o novo tamanho
+        y: GAME_HEIGHT - (PLAYER_SIZE * 0.4) - 20, // Posicionar acima da base com o novo tamanho
         health: 100,
         maxHealth: 100,
         mana: 100,
@@ -923,10 +891,7 @@ function restartGame() {
         shield: 0,
         cooldownReduction: 0,
         criticalChance: 0,
-        movementSpeedBonus: 0,
-        isTakingDamage: false,
-        damageFlashDuration: 100,
-        damageFlashTimer: 0
+        movementSpeedBonus: 0
     };
     for (const spellName in spellsData) {
         spellLastCastTime[spellName] = 0;
@@ -940,41 +905,31 @@ function restartGame() {
     isMovingLeft = false;
     isMovingRight = false;
     lastMonsterSpawnTime = 0;
-    gameOver = false;
-    gamePaused = false;
     difficultyLevel = 1;
 
-    // Resetar nuvens também
-    clouds = [];
-    lastCloudSpawnTime = 0;
-
     updateUnlockSkillButtons();
-
-    gameOverScreen.classList.add('hidden');
     updateHUD();
+    resizeCanvas(); // Garante que o player é posicionado corretamente no novo tamanho
+}
+
+function startGame() {
+    resetGame();
+    gameState = 'PLAYING';
+    showScreen(gameContent); // Mostra a tela do jogo
     requestAnimationFrame(gameLoop);
 }
 
 // --- Funções da Árvore de Habilidades ---
 function toggleSkillTree() {
-    console.log("toggleSkillTree() chamado.");
-    if (!skillTree) {
-        console.error("Erro: Elemento #skill-tree não encontrado!");
-        return;
+    if (gameState === 'PLAYING') {
+        gameState = 'PAUSED_SKILL_TREE';
+        skillTree.classList.remove('hidden');
+    } else if (gameState === 'PAUSED_SKILL_TREE') {
+        skillTree.classList.add('hidden');
+        gameState = 'PLAYING';
+        requestAnimationFrame(gameLoop); // Retoma o loop do jogo
     }
-    skillTree.classList.toggle('hidden');
-    console.log("Classe 'hidden' de skill-tree após toggle:", skillTree.classList.contains('hidden') ? 'Adicionada (oculto)' : 'Removida (visível)');
-
-    gamePaused = skillTree.classList.contains('hidden') ? false : true;
-    console.log("gamePaused após toggle:", gamePaused);
-
-    if (!gamePaused) {
-        console.log("Retomando gameLoop...");
-        requestAnimationFrame(gameLoop);
-    } else {
-        console.log("Jogo pausado. Atualizando botões de habilidade...");
-        updateUnlockSkillButtons();
-    }
+    updateUnlockSkillButtons(); // Atualiza botões sempre que abrir/fechar
 }
 
 function unlockSkill(skillId) {
@@ -1050,7 +1005,7 @@ function updateUnlockSkillButtons() {
 // --- Event Listeners para Desktop (Teclado) ---
 document.addEventListener('keydown', (e) => {
     keys[e.key] = true;
-    if (!gamePaused) {
+    if (gameState === 'PLAYING') { // Apenas permite input se o jogo estiver PLAYING
         if (e.key === ' ') {
             e.preventDefault();
             castSpell();
@@ -1069,24 +1024,24 @@ document.addEventListener('keyup', (e) => {
 });
 
 // --- Event Listeners para Mobile (Toque) ---
-moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isMovingLeft = true; });
+moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAYING') isMovingLeft = true; });
 moveLeftBtn.addEventListener('touchend', (e) => { e.preventDefault(); isMovingLeft = false; });
 moveLeftBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); isMovingLeft = false; });
 
-moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isMovingRight = true; });
+moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAYING') isMovingRight = true; });
 moveRightBtn.addEventListener('touchend', (e) => { e.preventDefault(); isMovingRight = false; });
 moveRightBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); isMovingRight = false; });
 
 castSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    if (!gamePaused) {
+    if (gameState === 'PLAYING') {
         castSpell();
     }
 });
 
 prevSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    if (!gamePaused) {
+    if (gameState === 'PLAYING') {
         player.currentSpellIndex = (player.currentSpellIndex - 1 + player.activeSpells.length) % player.activeSpells.length;
         updateHUD();
     }
@@ -1094,22 +1049,24 @@ prevSpellBtn.addEventListener('click', (e) => {
 
 nextSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    if (!gamePaused) {
+    if (gameState === 'PLAYING') {
         player.currentSpellIndex = (player.currentSpellIndex + 1) % player.activeSpells.length;
         updateHUD();
     }
 });
 
+// Event Listeners para os botões do Menu e Game Over
+startGameBtn.addEventListener('click', startGame);
+restartGameBtn.addEventListener('click', startGame); // Ao invés de restartGame, chama startGame para resetar e iniciar
+
 // Verificação se os elementos existem antes de adicionar event listeners
 if (openSkillsBtn) {
-    console.log("Botão 'Habilidades' (openSkillsBtn) encontrado.");
     openSkillsBtn.addEventListener('click', toggleSkillTree);
 } else {
     console.error("Erro: Botão 'Habilidades' com ID 'open-skills-btn' não encontrado no HTML!");
 }
 
 if (closeSkillTreeBtn) {
-    console.log("Botão 'Fechar Habilidades' (closeSkillTreeBtn) encontrado.");
     closeSkillTreeBtn.addEventListener('click', toggleSkillTree);
 } else {
     console.error("Erro: Botão 'Fechar Árvore de Habilidades' com ID 'close-skill-tree' não encontrado no HTML!");
@@ -1123,84 +1080,65 @@ unlockSkillButtons.forEach(button => {
     });
 });
 
-restartGameBtn.addEventListener('click', restartGame);
-
 
 // --- Loop Principal do Jogo ---
 let lastFrameTime = 0;
 function gameLoop(currentTime) {
-    if (gameOver || gamePaused) {
-        return;
+    // Apenas executa a lógica do jogo se o estado for 'PLAYING'
+    if (gameState === 'PLAYING') {
+        const deltaTime = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;
+
+        // Atualiza o offset da animação do jogador
+        playerAnimationOffset = PLAYER_ANIMATION_AMPLITUDE * Math.sin(Date.now() * PLAYER_ANIMATION_SPEED * 0.001);
+
+        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+        // Desenha o background
+        if (loadedAssets.background && loadedAssets.background.complete) {
+            ctx.drawImage(loadedAssets.background, 0, 0, GAME_WIDTH, GAME_HEIGHT);
+        } else {
+            // Opcional: Desenhe uma cor de fundo enquanto a imagem carrega
+            ctx.fillStyle = '#333'; // Exemplo de cor de fundo cinza escuro
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        }
+
+        movePlayer();
+        spawnMonster();
+        moveMonsters();
+        moveSpells();
+        moveMonsterProjectiles();
+        checkCollisions();
+        regenerateMana();
+
+        drawPlayer();
+        drawMonsters();
+        drawSpells();
+        drawMonsterProjectiles();
+        drawPoisonClouds();
+        updateHUD();
     }
-
-    const deltaTime = currentTime - lastFrameTime;
-    lastFrameTime = currentTime;
-
-    // Atualiza o offset da animação do jogador
-    playerAnimationOffset = PLAYER_ANIMATION_AMPLITUDE * Math.sin(Date.now() * PLAYER_ANIMATION_SPEED * 0.001);
-
-    // Desativa o flash de dano se o tempo acabou
-    if (player.isTakingDamage && Date.now() > player.damageFlashTimer) {
-        player.isTakingDamage = false;
-    }
-
-    ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-    // --- Desenha o Background ---
-    // Desenha o céu (cor sólida)
-    ctx.fillStyle = '#87CEEB'; // Light sky blue
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO)); // Porção do céu
-
-    // Lógica e desenho das nuvens (elas devem aparecer sobre o céu, mas abaixo dos monstros/jogador)
-    spawnClouds();
-    moveClouds();
-    drawClouds(); // Chamada para desenhar as nuvens
-
-    // Desenha a grama texturizada (sem variação de altura na linha superior)
-    const grassImage = loadedAssets.background_grass;
-
-    // Verifica se a imagem da grama foi carregada antes de desenhar
-    if (grassImage && grassImage.complete) {
-        const grassStartY = GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO);
-        const grassSectionHeight = GAME_HEIGHT - grassStartY;
-
-        // Cria um padrão de repetição com a imagem da grama
-        const pattern = ctx.createPattern(grassImage, 'repeat');
-        ctx.fillStyle = pattern;
-        ctx.fillRect(0, grassStartY, GAME_WIDTH, grassSectionHeight);
-    } else {
-        // Fallback para cor sólida se a imagem da grama não carregar
-        ctx.fillStyle = '#7CFC00'; // Lawn Green
-        ctx.fillRect(0, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO), GAME_WIDTH, GAME_HEIGHT * GRASS_HEIGHT_RATIO);
-    }
-    // --- Fim do Desenho do Background ---
-
-
-    movePlayer();
-    spawnMonster();
-    moveMonsters();
-    moveSpells();
-    moveMonsterProjectiles();
-    checkCollisions();
-    regenerateMana();
-
-    // Desenha o jogador, monstros, spells, etc. depois do background e nuvens
-    drawPlayer();
-    drawMonsters();
-    drawSpells();
-    drawMonsterProjectiles();
-    drawPoisonClouds();
-    updateHUD();
-
+    // Se o estado não for 'PLAYING', o loop ainda chama a si mesmo, mas não executa a lógica
+    // Isso é importante para que o requestAnimationFrame continue rodando e o estado possa mudar
     requestAnimationFrame(gameLoop);
 }
 
 // --- Iniciar o Jogo ---
 loadAssets().then(() => {
-    console.log("Todos os assets carregados! Iniciando o jogo...");
-    updateHUD();
-    updateUnlockSkillButtons();
-    requestAnimationFrame(gameLoop);
+    console.log("Todos os assets carregados! Exibindo menu inicial...");
+    // Inicializa o player com o tamanho reduzido ANTES de resizeCanvas
+    player = {
+        size: PLAYER_SIZE * 0.4, // Tamanho inicial reduzido
+        x: 0, y: 0, // Posição será ajustada por resizeCanvas() e resetGame()
+        health: 100, maxHealth: 100, mana: 100, maxMana: 100,
+        level: 1, xp: 0, xpToNextLevel: LEVEL_UP_XP_BASE, skillPoints: 0,
+        activeSpells: ['Fagulha'], passiveSkills: [], currentSpellIndex: 0,
+        spellPower: 1, manaRegenRate: 0.1, shield: 0, cooldownReduction: 0,
+        criticalChance: 0, movementSpeedBonus: 0
+    };
+    resizeCanvas(); // Ajusta o canvas e posiciona o player
+    showScreen(mainMenuScreen); // Inicia mostrando o menu principal
+    requestAnimationFrame(gameLoop); // Inicia o loop do jogo
 }).catch(error => {
     console.error("Erro ao carregar assets:", error);
 });
