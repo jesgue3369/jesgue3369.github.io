@@ -18,8 +18,8 @@ const restartGameBtn = document.getElementById('restart-game');
 
 // Botões de controle mobile
 const moveLeftBtn = document.getElementById('move-left-btn');
-const moveRightBtn = document.getElementById('move-right-btn');
-const castSpellBtn = document = document.getElementById('cast-spell-btn');
+const moveRightBtn = document.getElementById('move-right-btn'); // CORREÇÃO AQUI: Certifique-se de que é getElementById
+const castSpellBtn = document.getElementById('cast-spell-btn');
 const prevSpellBtn = document.getElementById('prev-spell-btn');
 const nextSpellBtn = document.getElementById('next-spell-btn');
 
@@ -30,14 +30,14 @@ const PLAYER_SIZE = 50;
 const INITIAL_MONSTER_SIZE = 40;
 const SPELL_SIZE = 20;
 const PLAYER_SPEED = 5;
-const PROJECTILE_SPEED = 7;
+const PROJECTILE_SPEED = 7; // Velocidade padrão dos projéteis (tanto do jogador quanto dos monstros)
 const INITIAL_MONSTER_SPEED = 1;
-const MONSTER_SPAWN_INTERVAL = 1500;
+const MONSTER_SPAWN_INTERVAL = 1500; // ms
 const XP_PER_MONSTER = 10;
 const LEVEL_UP_XP_BASE = 100;
 const LEVEL_UP_XP_MULTIPLIER = 1.2;
 
-const CONTROLLER_BAR_HEIGHT = 100;
+const CONTROLLER_BAR_HEIGHT = 100; // Deve corresponder ao CSS
 
 // --- Sprites (Imagens) ---
 const ASSET_PATHS = {
@@ -55,9 +55,7 @@ const ASSET_PATHS = {
     spell_fagulha: './assets/spell_fagulha.png',
     spell_bola_de_fogo: './assets/spell_bola_de_fogo.png',
     spell_estilhaco_de_gelo: './assets/spell_estilhaco_de_gelo.png',
-    // NOVOS ASSETS PARA O BACKGROUND
-    background_grass: './assets/background_grass.png',
-    cloud: './assets/cloud.png'
+    // Adicione mais paths para outras magias e efeitos se tiver sprites para eles
 };
 
 let loadedAssets = {};
@@ -70,14 +68,14 @@ let player = {
     y: 0,
     health: 100,
     maxHealth: 100,
-    mana: 100,
-    maxMana: 100,
+    mana: 50,
+    maxMana: 50,
     level: 1,
     xp: 0,
     xpToNextLevel: LEVEL_UP_XP_BASE,
     skillPoints: 0,
-    activeSpells: ['Fagulha'],
-    passiveSkills: [],
+    activeSpells: ['Fagulha'], // Fagulha é a magia inicial
+    passiveSkills: [], // Armazena IDs de skills passivas
     currentSpellIndex: 0,
     spellPower: 1,
     manaRegenRate: 0.1,
@@ -86,19 +84,6 @@ let player = {
     criticalChance: 0,
     movementSpeedBonus: 0
 };
-
-// --- Variáveis para animação do jogador e background ---
-let playerAnimationOffset = 0;
-const PLAYER_ANIMATION_AMPLITUDE = 5;
-const PLAYER_ANIMATION_SPEED = 5;
-
-// NOVAS VARIÁVEIS PARA BACKGROUND E NUVENS
-const GRASS_HEIGHT_RATIO = 0.25; // Reduzido para 25% da altura da tela para a grama (começa mais baixo)
-let clouds = [];
-const CLOUD_SPAWN_INTERVAL = 8000; // Tempo em ms para spawnar uma nova nuvem
-const BASE_CLOUD_SPEED = 1.0; // Velocidade base das nuvens aumentada
-let lastCloudSpawnTime = 0;
-
 
 let monsters = [];
 let spells = [];
@@ -300,25 +285,23 @@ resizeCanvas();
 
 // --- Funções de Desenho ---
 function drawPlayer() {
-    const playerYAdjusted = player.y + playerAnimationOffset;
-    
     if (loadedAssets.player && loadedAssets.player.complete) {
-        ctx.drawImage(loadedAssets.player, player.x, playerYAdjusted, PLAYER_SIZE, PLAYER_SIZE);
+        ctx.drawImage(loadedAssets.player, player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
     } else {
         ctx.fillStyle = '#00f';
-        ctx.fillRect(player.x, playerYAdjusted, PLAYER_SIZE, PLAYER_SIZE);
+        ctx.fillRect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
         ctx.fillStyle = 'white';
         ctx.font = `${PLAYER_SIZE * 0.6}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('M', player.x + PLAYER_SIZE / 2, playerYAdjusted + PLAYER_SIZE / 2);
+        ctx.fillText('M', player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2);
     }
 
     if (player.shield > 0) {
         ctx.strokeStyle = 'cyan';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(player.x + PLAYER_SIZE / 2, playerYAdjusted + PLAYER_SIZE / 2, PLAYER_SIZE / 2 + 5, 0, Math.PI * 2);
+        ctx.arc(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, PLAYER_SIZE / 2 + 5, 0, Math.PI * 2);
         ctx.stroke();
     }
 }
@@ -436,58 +419,6 @@ function movePlayer() {
         player.x += currentSpeed;
     }
 }
-
-// --- Funções para Nuvens ---
-function spawnClouds() {
-    const now = Date.now();
-    if (now - lastCloudSpawnTime > CLOUD_SPAWN_INTERVAL) {
-        const cloudImage = loadedAssets.cloud;
-        if (!cloudImage || !cloudImage.complete) {
-            lastCloudSpawnTime = now; // Tenta de novo no próximo ciclo se a imagem não estiver pronta
-            return;
-        }
-
-        const cloudWidth = 100 + Math.random() * 100; // Tamanho variável da nuvem
-        const cloudHeight = cloudWidth * (cloudImage.height / cloudImage.width); // Manter proporção
-        const y = Math.random() * (GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO) - cloudHeight - 20); // Spawn na área do céu, com margem
-        const x = GAME_WIDTH; // Começa fora da tela, à direita
-        const speed = BASE_CLOUD_SPEED + Math.random() * 1.0; // Velocidade ligeiramente variável, com base mais alta
-        const opacity = 0.5 + Math.random() * 0.3; // Opacidade variando entre 0.5 e 0.8
-
-        clouds.push({
-            x: x,
-            y: y,
-            width: cloudWidth,
-            height: cloudHeight,
-            speed: speed,
-            opacity: opacity
-        });
-        lastCloudSpawnTime = now;
-    }
-}
-
-function moveClouds() {
-    for (let i = clouds.length - 1; i >= 0; i--) {
-        clouds[i].x -= clouds[i].speed;
-        if (clouds[i].x + clouds[i].width < 0) { // Se saiu da tela à esquerda
-            clouds.splice(i, 1);
-        }
-    }
-}
-
-function drawClouds() {
-    const cloudImage = loadedAssets.cloud;
-    if (cloudImage && cloudImage.complete) {
-        clouds.forEach(cloud => {
-            ctx.save(); // Salva o estado atual do contexto
-            ctx.globalAlpha = cloud.opacity; // Define a opacidade
-            ctx.drawImage(cloudImage, cloud.x, cloud.y, cloud.width, cloud.height);
-            ctx.restore(); // Restaura o estado anterior do contexto
-        });
-    }
-}
-// --- Fim das Funções para Nuvens ---
-
 
 function spawnMonster() {
     const now = Date.now();
@@ -822,7 +753,7 @@ function checkCollisions() {
         }
     });
 
-    const now = Date.now();
+    const now = Date.now(); // CORREÇÃO: era Date.24, deve ser Date.now()
     poisonClouds.forEach((cloud, cloudIndex) => {
         if (now - cloud.lastTickTime > cloud.tickInterval) {
             monsters.forEach(monster => {
@@ -898,8 +829,8 @@ function restartGame() {
         y: GAME_HEIGHT - PLAYER_SIZE - 20,
         health: 100,
         maxHealth: 100,
-        mana: 100,
-        maxMana: 100,
+        mana: 50,
+        maxMana: 50,
         level: 1,
         xp: 0,
         xpToNextLevel: LEVEL_UP_XP_BASE,
@@ -930,10 +861,6 @@ function restartGame() {
     gamePaused = false;
     difficultyLevel = 1;
 
-    // Resetar nuvens também
-    clouds = [];
-    lastCloudSpawnTime = 0;
-
     updateUnlockSkillButtons();
 
     gameOverScreen.classList.add('hidden');
@@ -943,22 +870,12 @@ function restartGame() {
 
 // --- Funções da Árvore de Habilidades ---
 function toggleSkillTree() {
-    console.log("toggleSkillTree() chamado.");
-    if (!skillTree) {
-        console.error("Erro: Elemento #skill-tree não encontrado!");
-        return;
-    }
     skillTree.classList.toggle('hidden');
-    console.log("Classe 'hidden' de skill-tree após toggle:", skillTree.classList.contains('hidden') ? 'Adicionada (oculto)' : 'Removida (visível)');
-
     gamePaused = skillTree.classList.contains('hidden') ? false : true;
-    console.log("gamePaused após toggle:", gamePaused);
 
     if (!gamePaused) {
-        console.log("Retomando gameLoop...");
         requestAnimationFrame(gameLoop);
     } else {
-        console.log("Jogo pausado. Atualizando botões de habilidade...");
         updateUnlockSkillButtons();
     }
 }
@@ -1086,21 +1003,8 @@ nextSpellBtn.addEventListener('click', (e) => {
     }
 });
 
-// Verificação se os elementos existem antes de adicionar event listeners
-if (openSkillsBtn) {
-    console.log("Botão 'Habilidades' (openSkillsBtn) encontrado.");
-    openSkillsBtn.addEventListener('click', toggleSkillTree);
-} else {
-    console.error("Erro: Botão 'Habilidades' com ID 'open-skills-btn' não encontrado no HTML!");
-}
-
-if (closeSkillTreeBtn) {
-    console.log("Botão 'Fechar Habilidades' (closeSkillTreeBtn) encontrado.");
-    closeSkillTreeBtn.addEventListener('click', toggleSkillTree);
-} else {
-    console.error("Erro: Botão 'Fechar Árvore de Habilidades' com ID 'close-skill-tree' não encontrado no HTML!");
-}
-
+openSkillsBtn.addEventListener('click', toggleSkillTree);
+closeSkillTreeBtn.addEventListener('click', toggleSkillTree);
 
 unlockSkillButtons.forEach(button => {
     button.addEventListener('click', () => {
@@ -1115,59 +1019,14 @@ restartGameBtn.addEventListener('click', restartGame);
 // --- Loop Principal do Jogo ---
 let lastFrameTime = 0;
 function gameLoop(currentTime) {
-    // Adicionado para depuração
-    console.log("GameLoop: Início do ciclo.");
-    
     if (gameOver || gamePaused) {
-        console.log("GameLoop: Jogo parado ou pausado. Retornando.");
         return;
     }
 
     const deltaTime = currentTime - lastFrameTime;
     lastFrameTime = currentTime;
 
-    // Atualiza o offset da animação do jogador
-    playerAnimationOffset = PLAYER_ANIMATION_AMPLITUDE * Math.sin(Date.now() * PLAYER_ANIMATION_SPEED * 0.001);
-
     ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-    // Adicionado bloco try-catch para depuração de erros de renderização
-    try {
-        // --- Desenha o Background ---
-        // Desenha o céu (cor sólida)
-        ctx.fillStyle = '#87CEEB'; // Light sky blue
-        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO)); // Porção do céu
-
-        // Desenha a grama texturizada (sem variação de altura na linha superior)
-        const grassImage = loadedAssets.background_grass;
-
-        if (grassImage && grassImage.complete) {
-            const grassStartY = GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO);
-            const grassSectionHeight = GAME_HEIGHT - grassStartY;
-
-            const pattern = ctx.createPattern(grassImage, 'repeat');
-            ctx.fillStyle = pattern;
-            ctx.fillRect(0, grassStartY, GAME_WIDTH, grassSectionHeight);
-        } else {
-            // Fallback para cor sólida se a imagem da grama não carregar
-            console.warn("GameLoop: Imagem da grama não carregada ou não completa. Usando fallback de cor sólida.");
-            ctx.fillStyle = '#7CFC00'; // Lawn Green
-            ctx.fillRect(0, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO), GAME_WIDTH, GAME_HEIGHT * GRASS_HEIGHT_RATIO);
-        }
-        // --- Fim do Desenho do Background ---
-
-        // Lógica e desenho das nuvens (elas devem aparecer sobre o céu, mas abaixo dos monstros/jogador)
-        spawnClouds();
-        moveClouds();
-        drawClouds();
-
-    } catch (error) {
-        console.error("GameLoop: Erro crítico durante a renderização do background ou nuvens:", error);
-        // Em caso de erro, ainda tenta requisitar o próximo frame para evitar paralisação total.
-        // O erro no console ajudará a identificar a causa.
-        requestAnimationFrame(gameLoop);
-        return; // Sai do ciclo atual para evitar mais erros em cascata
-    }
 
     movePlayer();
     spawnMonster();
@@ -1177,7 +1036,6 @@ function gameLoop(currentTime) {
     checkCollisions();
     regenerateMana();
 
-    // Desenha o jogador, monstros, spells, etc. depois do background e nuvens
     drawPlayer();
     drawMonsters();
     drawSpells();
@@ -1185,22 +1043,12 @@ function gameLoop(currentTime) {
     drawPoisonClouds();
     updateHUD();
 
-    // Adicionado para depuração
-    console.log("GameLoop: Requisitando próximo frame.");
     requestAnimationFrame(gameLoop);
 }
 
 // --- Iniciar o Jogo ---
 loadAssets().then(() => {
     console.log("Todos os assets carregados! Iniciando o jogo...");
-    // Adicionado para depuração: verificar status das imagens carregadas
-    for (let key in loadedAssets) {
-        if (loadedAssets[key] instanceof HTMLImageElement) {
-            console.log(`Asset '${key}': complete=${loadedAssets[key].complete}, naturalWidth=${loadedAssets[key].naturalWidth}, naturalHeight=${loadedAssets[key].naturalHeight}`);
-        } else {
-            console.log(`Asset '${key}': Tipo inesperado ou não é uma imagem.`);
-        }
-    }
     updateHUD();
     updateUnlockSkillButtons();
     requestAnimationFrame(gameLoop);
