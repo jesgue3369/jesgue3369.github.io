@@ -1115,7 +1115,11 @@ restartGameBtn.addEventListener('click', restartGame);
 // --- Loop Principal do Jogo ---
 let lastFrameTime = 0;
 function gameLoop(currentTime) {
+    // Adicionado para depuração
+    console.log("GameLoop: Início do ciclo.");
+    
     if (gameOver || gamePaused) {
+        console.log("GameLoop: Jogo parado ou pausado. Retornando.");
         return;
     }
 
@@ -1127,34 +1131,43 @@ function gameLoop(currentTime) {
 
     ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // --- Desenha o Background ---
-    // Desenha o céu (cor sólida)
-    ctx.fillStyle = '#87CEEB'; // Light sky blue
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO)); // Porção do céu
+    // Adicionado bloco try-catch para depuração de erros de renderização
+    try {
+        // --- Desenha o Background ---
+        // Desenha o céu (cor sólida)
+        ctx.fillStyle = '#87CEEB'; // Light sky blue
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO)); // Porção do céu
 
-    // Desenha a grama texturizada (sem variação de altura na linha superior)
-    const grassImage = loadedAssets.background_grass;
+        // Desenha a grama texturizada (sem variação de altura na linha superior)
+        const grassImage = loadedAssets.background_grass;
 
-    if (grassImage && grassImage.complete) {
-        // Define a linha Y onde a grama começa
-        const grassStartY = GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO);
-        const grassSectionHeight = GAME_HEIGHT - grassStartY;
+        if (grassImage && grassImage.complete) {
+            const grassStartY = GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO);
+            const grassSectionHeight = GAME_HEIGHT - grassStartY;
 
-        // Desenha a grama como um padrão repetitivo para preencher toda a área
-        const pattern = ctx.createPattern(grassImage, 'repeat');
-        ctx.fillStyle = pattern;
-        ctx.fillRect(0, grassStartY, GAME_WIDTH, grassSectionHeight);
-    } else {
-        // Fallback para cor sólida se a imagem da grama não carregar
-        ctx.fillStyle = '#7CFC00'; // Lawn Green
-        ctx.fillRect(0, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO), GAME_WIDTH, GAME_HEIGHT * GRASS_HEIGHT_RATIO);
+            const pattern = ctx.createPattern(grassImage, 'repeat');
+            ctx.fillStyle = pattern;
+            ctx.fillRect(0, grassStartY, GAME_WIDTH, grassSectionHeight);
+        } else {
+            // Fallback para cor sólida se a imagem da grama não carregar
+            console.warn("GameLoop: Imagem da grama não carregada ou não completa. Usando fallback de cor sólida.");
+            ctx.fillStyle = '#7CFC00'; // Lawn Green
+            ctx.fillRect(0, GAME_HEIGHT * (1 - GRASS_HEIGHT_RATIO), GAME_WIDTH, GAME_HEIGHT * GRASS_HEIGHT_RATIO);
+        }
+        // --- Fim do Desenho do Background ---
+
+        // Lógica e desenho das nuvens (elas devem aparecer sobre o céu, mas abaixo dos monstros/jogador)
+        spawnClouds();
+        moveClouds();
+        drawClouds();
+
+    } catch (error) {
+        console.error("GameLoop: Erro crítico durante a renderização do background ou nuvens:", error);
+        // Em caso de erro, ainda tenta requisitar o próximo frame para evitar paralisação total.
+        // O erro no console ajudará a identificar a causa.
+        requestAnimationFrame(gameLoop);
+        return; // Sai do ciclo atual para evitar mais erros em cascata
     }
-    // --- Fim do Desenho do Background ---
-
-    // Lógica e desenho das nuvens (elas devem aparecer sobre o céu, mas abaixo dos monstros/jogador)
-    spawnClouds();
-    moveClouds();
-    drawClouds();
 
     movePlayer();
     spawnMonster();
@@ -1172,12 +1185,22 @@ function gameLoop(currentTime) {
     drawPoisonClouds();
     updateHUD();
 
+    // Adicionado para depuração
+    console.log("GameLoop: Requisitando próximo frame.");
     requestAnimationFrame(gameLoop);
 }
 
 // --- Iniciar o Jogo ---
 loadAssets().then(() => {
     console.log("Todos os assets carregados! Iniciando o jogo...");
+    // Adicionado para depuração: verificar status das imagens carregadas
+    for (let key in loadedAssets) {
+        if (loadedAssets[key] instanceof HTMLImageElement) {
+            console.log(`Asset '${key}': complete=${loadedAssets[key].complete}, naturalWidth=${loadedAssets[key].naturalWidth}, naturalHeight=${loadedAssets[key].naturalHeight}`);
+        } else {
+            console.log(`Asset '${key}': Tipo inesperado ou não é uma imagem.`);
+        }
+    }
     updateHUD();
     updateUnlockSkillButtons();
     requestAnimationFrame(gameLoop);
