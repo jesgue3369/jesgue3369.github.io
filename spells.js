@@ -3,6 +3,7 @@
 let spells = [];
 let poisonClouds = [];
 
+// Adaptação: agora recebe applyDamageToMonsterCallback (passado de main.js)
 function castSpell(player, spellLastCastTime, monsters, applyDamageToMonsterCallback) {
     const currentSpellName = player.activeSpells[player.currentSpellIndex];
     const spellData = SPELLS_DATA[currentSpellName];
@@ -17,7 +18,7 @@ function castSpell(player, spellLastCastTime, monsters, applyDamageToMonsterCall
         const spellY = player.y;
 
         let finalDamage = spellData.damage * player.spellPower;
-        if (Math.random() < player.criticalChance && spellData.damage) {
+        if (spellData.damage && Math.random() < player.criticalChance) { // Check if spell has damage before critical
             finalDamage *= 2;
             console.log("CRÍTICO!");
         }
@@ -78,11 +79,11 @@ function moveSpells() {
         let spell = spells[i];
         if (spell.type === 'aoe_lightning' || spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
             if (!spell.spawnTime) spell.spawnTime = Date.now(); // Should be set by castSpell, fallback
-            if (Date.now() - spell.spawnTime > 200) {
+            if (Date.now() - spell.spawnTime > 200) { // Duration for visual effect of AoE spells
                 spells.splice(i, 1);
             }
         } else {
-            spell.y -= 10;
+            spell.y -= PROJECTILE_BASE_SPEED; // Using base speed for consistency
             if (spell.y < 0) {
                 spells.splice(i, 1);
             }
@@ -90,17 +91,19 @@ function moveSpells() {
     }
 }
 
+// Adaptação: agora recebe endGameCallback, handleMonsterDefeatCallback, applyDamageToMonsterCallback (passados de main.js)
 function checkSpellCollisions(player, monsters, endGameCallback, handleMonsterDefeatCallback, applyDamageToMonsterCallback) {
     const now = Date.now();
     // Player spells vs Monsters
     for (let i = spells.length - 1; i >= 0; i--) {
         let spell = spells[i];
         if (spell.type === 'aoe_lightning' || spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
-            continue;
+            continue; // AoE damage is applied directly in castSpell or through poisonClouds
         }
 
         for (let j = monsters.length - 1; j >= 0; j--) {
             let monster = monsters[j];
+            // Simple AABB collision detection for projectiles
             if (spell.x < monster.x + monster.size &&
                 spell.x + SPELL_SIZE > monster.x &&
                 spell.y < monster.y + monster.size &&
@@ -112,12 +115,14 @@ function checkSpellCollisions(player, monsters, endGameCallback, handleMonsterDe
                     player.health = Math.min(player.maxHealth + player.shield, player.health + (spell.damage * spell.lifeSteal));
                 }
 
-                spells.splice(i, 1);
+                spells.splice(i, 1); // Remove projectile on hit
                 
                 if (monster.health <= 0) {
                     handleMonsterDefeatCallback(monster, j, player, gainXP);
+                    // Adjust index 'i' if a monster before current 'j' was removed
+                    if (j < i) i--;
                 }
-                break;
+                break; // Stop checking against other monsters once spell hits one
             }
         }
     }
@@ -136,12 +141,14 @@ function checkSpellCollisions(player, monsters, endGameCallback, handleMonsterDe
                     applyDamageToMonsterCallback(monster, cloud.damagePerTick);
                     if (monster.health <= 0) {
                         handleMonsterDefeatCallback(monster, j, player, gainXP);
+                        // Adjust index 'j' if a monster was removed
+                        if (j < monsters.length - 1) j++; // Re-evaluate current index after splice
                     }
                 }
             }
             cloud.lastTickTime = now;
         }
-        cloud.duration -= (Date.now() - (cloud.lastDurationUpdate || now));
+        cloud.duration -= (now - (cloud.lastDurationUpdate || now));
         cloud.lastDurationUpdate = now;
         if (cloud.duration <= 0) {
             poisonClouds.splice(i, 1);
