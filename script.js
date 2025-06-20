@@ -1,24 +1,26 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const hudHealthValue = document.getElementById('health-value');
-const hudManaValue = document.getElementById('mana-value');
-const hudLevelValue = document.getElementById('level-value');
-const hudXpValue = document.getElementById('xp-value');
-const hudSpellName = document.getElementById('spell-name');
-const hudWaveValue = document.getElementById('wave-value'); // New HUD element
-const gameOverScreen = document.getElementById('game-over-screen');
-const restartGameBtn = document.getElementById('restart-game');
-const mainMenuScreen = document.getElementById('main-menu-screen');
-const startGameBtn = document.getElementById('start-game-btn');
-const gameContent = document.getElementById('game-content');
-const abilityCardsScreen = document.getElementById('ability-cards-screen'); // New screen element
-const abilityCardOptionsDiv = document.getElementById('ability-card-options'); // Container for cards
-const mobileControlsBar = document.getElementById('mobile-controls-bar');
-const moveLeftBtn = document.getElementById('move-left-btn');
-const moveRightBtn = document.getElementById('move-right-btn');
-const castSpellBtn = document.getElementById('cast-spell-btn');
-const prevSpellBtn = document.getElementById('prev-spell-btn');
-const nextSpellBtn = document.getElementById('next-spell-btn');
+
+// Declare as variáveis do HUD e dos botões globalmente, mas não as atribua imediatamente
+let hudHealthValue;
+let hudManaValue;
+let hudLevelValue;
+let hudXpValue;
+let hudSpellName;
+let hudWaveValue; // New HUD element
+let gameOverScreen;
+let restartGameBtn;
+let mainMenuScreen;
+let startGameBtn;
+let gameContent;
+let abilityCardsScreen; // New screen element
+let abilityCardOptionsDiv; // Container for cards
+let mobileControlsBar;
+let moveLeftBtn;
+let moveRightBtn;
+let castSpellBtn;
+let prevSpellBtn;
+let nextSpellBtn;
 
 // --- Configurações do Jogo ---
 let GAME_WIDTH;
@@ -302,6 +304,7 @@ function drawPoisonClouds() {
 }
 
 function updateHUD() {
+    // These elements are guaranteed to exist now due to DOMContentLoaded
     hudHealthValue.textContent = `${player.health}/${player.maxHealth}${player.shield > 0 ? ` (+${player.shield})` : ''}`;
     hudManaValue.textContent = `${player.mana.toFixed(0)}/${player.maxMana.toFixed(0)}`;
     hudLevelValue.textContent = player.level;
@@ -656,7 +659,8 @@ function checkCollisions() {
                     player.health += player.shield; // Apply remaining damage to health
                     player.shield = 0;
                 }
-            } else {
+            }
+            else {
                 player.health -= projectile.damage;
             }
             monsterProjectiles.splice(i, 1);
@@ -810,7 +814,7 @@ function resetGame() {
     currentWave = 0;
     monstersKilledInWave = 0;
     lastMonsterSpawnTime = 0;
-    updateHUD();
+    updateHUD(); // This will now correctly access the elements
 }
 
 function startNewWave() {
@@ -827,39 +831,6 @@ function startNewWave() {
     monsters.forEach(monster => monster.hitByLightning = false);
     updateHUD();
 }
-
-// --- Event Listeners ---
-startGameBtn.addEventListener('click', () => {
-    resetGame();
-    startNewWave();
-});
-
-restartGameBtn.addEventListener('click', () => {
-    resetGame();
-    startNewWave();
-});
-
-moveLeftBtn.addEventListener('touchstart', () => { isMovingLeft = true; });
-moveLeftBtn.addEventListener('touchend', () => { isMovingLeft = false; });
-moveLeftBtn.addEventListener('mousedown', () => { isMovingLeft = true; });
-moveLeftBtn.addEventListener('mouseup', () => { isMovingLeft = false; });
-
-moveRightBtn.addEventListener('touchstart', () => { isMovingRight = true; });
-moveRightBtn.addEventListener('touchend', () => { isMovingRight = false; });
-moveRightBtn.addEventListener('mousedown', () => { isMovingRight = true; });
-moveRightBtn.addEventListener('mouseup', () => { isMovingRight = false; });
-
-castSpellBtn.addEventListener('click', castSpell);
-
-prevSpellBtn.addEventListener('click', () => {
-    player.currentSpellIndex = (player.currentSpellIndex - 1 + player.activeSpells.length) % player.activeSpells.length;
-    updateHUD();
-});
-
-nextSpellBtn.addEventListener('click', () => {
-    player.currentSpellIndex = (player.currentSpellIndex + 1) % player.activeSpells.length;
-    updateHUD();
-});
 
 // Global variables for new features
 let isDevMode = false;
@@ -885,38 +856,6 @@ function activateDevMode() {
     console.log("Modo Desenvolvedor Ativado!");
     updateHUD(); // Update HUD to reflect new stats
 }
-
-// --- Event Listeners for new controls and dev mode ---
-window.addEventListener('keydown', (e) => {
-    // Standard movement keys
-    keys[e.key] = true;
-    keys[e.key.toLowerCase()] = true; // Handle 'a'/'A', 'd'/'D'
-
-    // Spacebar to cast spell
-    if (e.key === ' ' && !e.repeat) { // Prevent rapid casting on hold
-        castSpell();
-    }
-
-    // Dev Mode Activation (999)
-    if (e.key === '9') {
-        devModeInputBuffer += '9';
-        if (devModeInputBuffer.length > DEV_MODE_CODE.length) {
-            devModeInputBuffer = devModeInputBuffer.substring(devModeInputBuffer.length - DEV_MODE_CODE.length);
-        }
-        if (devModeInputBuffer === DEV_MODE_CODE) {
-            activateDevMode();
-            devModeInputBuffer = ''; // Reset buffer after activation
-        }
-    } else if (e.key !== ' ' && e.key.toLowerCase() !== 'a' && e.key.toLowerCase() !== 'd' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
-        // Reset buffer if a non-movement, non-space, non-'9' key is pressed
-        devModeInputBuffer = '';
-    }
-});
-
-window.addEventListener('keyup', (e) => {
-    keys[e.key] = false;
-    keys[e.key.toLowerCase()] = false;
-});
 
 // --- Cast Spell Function (Modified for non-homing projectiles) ---
 function castSpell() {
@@ -1078,13 +1017,103 @@ function drawBackground() {
 }
 
 
-loadAssets().then(() => {
-    console.log("Todos os assets carregados! Exibindo menu inicial...");
-    player = { /* initial player setup will be done in resetGame() */ }; // Initialize player so resizeCanvas works
-    resizeCanvas(); // Initial canvas resize
-    resetGame(); // Set up initial game state (resets player, etc.)
-    showScreen(mainMenuScreen); // Show the main menu
-    animationFrameId = requestAnimationFrame(gameLoop); // Start the loop for state management
-}).catch(error => {
-    console.error("Erro ao carregar assets:", error);
+// Acha os elementos DOM e inicia o carregamento de assets somente após o DOM estar pronto
+document.addEventListener('DOMContentLoaded', () => {
+    // Atribua os elementos DOM aqui dentro
+    hudHealthValue = document.getElementById('health-value');
+    hudManaValue = document.getElementById('mana-value');
+    hudLevelValue = document.getElementById('level-value');
+    hudXpValue = document.getElementById('xp-value');
+    hudSpellName = document.getElementById('spell-name');
+    hudWaveValue = document.getElementById('wave-value');
+    gameOverScreen = document.getElementById('game-over-screen');
+    restartGameBtn = document.getElementById('restart-game');
+    mainMenuScreen = document.getElementById('main-menu-screen');
+    startGameBtn = document.getElementById('start-game-btn');
+    gameContent = document.getElementById('game-content');
+    abilityCardsScreen = document.getElementById('ability-cards-screen');
+    abilityCardOptionsDiv = document.getElementById('ability-card-options');
+    mobileControlsBar = document.getElementById('mobile-controls-bar');
+    moveLeftBtn = document.getElementById('move-left-btn');
+    moveRightBtn = document.getElementById('move-right-btn');
+    castSpellBtn = document.getElementById('cast-spell-btn');
+    prevSpellBtn = document.getElementById('prev-spell-btn');
+    nextSpellBtn = document.getElementById('next-spell-btn');
+
+    // Agora que os elementos existem, você pode adicionar os event listeners
+    startGameBtn.addEventListener('click', () => {
+        resetGame();
+        startNewWave();
+    });
+
+    restartGameBtn.addEventListener('click', () => {
+        resetGame();
+        startNewWave();
+    });
+
+    moveLeftBtn.addEventListener('touchstart', () => { isMovingLeft = true; });
+    moveLeftBtn.addEventListener('touchend', () => { isMovingLeft = false; });
+    moveLeftBtn.addEventListener('mousedown', () => { isMovingLeft = true; });
+    moveLeftBtn.addEventListener('mouseup', () => { isMovingLeft = false; });
+
+    moveRightBtn.addEventListener('touchstart', () => { isMovingRight = true; });
+    moveRightBtn.addEventListener('touchend', () => { isMovingRight = false; });
+    moveRightBtn.addEventListener('mousedown', () => { isMovingRight = true; });
+    moveRightBtn.addEventListener('mouseup', () => { isMovingRight = false; });
+
+    castSpellBtn.addEventListener('click', castSpell);
+
+    prevSpellBtn.addEventListener('click', () => {
+        player.currentSpellIndex = (player.currentSpellIndex - 1 + player.activeSpells.length) % player.activeSpells.length;
+        updateHUD();
+    });
+
+    nextSpellBtn.addEventListener('click', () => {
+        player.currentSpellIndex = (player.currentSpellIndex + 1) % player.activeSpells.length;
+        updateHUD();
+    });
+
+    window.addEventListener('keydown', (e) => {
+        // Standard movement keys
+        keys[e.key] = true;
+        keys[e.key.toLowerCase()] = true; // Handle 'a'/'A', 'd'/'D'
+
+        // Spacebar to cast spell
+        if (e.key === ' ' && !e.repeat) { // Prevent rapid casting on hold
+            castSpell();
+        }
+
+        // Dev Mode Activation (999)
+        if (e.key === '9') {
+            devModeInputBuffer += '9';
+            if (devModeInputBuffer.length > DEV_MODE_CODE.length) {
+                devModeInputBuffer = devModeInputBuffer.substring(devModeInputBuffer.length - DEV_MODE_CODE.length);
+            }
+            if (devModeInputBuffer === DEV_MODE_CODE) {
+                activateDevMode();
+                devModeInputBuffer = ''; // Reset buffer after activation
+            }
+        } else if (e.key !== ' ' && e.key.toLowerCase() !== 'a' && e.key.toLowerCase() !== 'd' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+            // Reset buffer if a non-movement, non-space, non-'9' key is pressed
+            devModeInputBuffer = '';
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        keys[e.key] = false;
+        keys[e.key.toLowerCase()] = false;
+    });
+
+    // Inicia o carregamento dos assets e o loop do jogo após o DOM estar pronto
+    loadAssets().then(() => {
+        console.log("Todos os assets carregados! Exibindo menu inicial...");
+        player = { /* initial player setup will be done in resetGame() */ }; // Initialize player so resizeCanvas works
+        resizeCanvas(); // Initial canvas resize
+        resetGame(); // Set up initial game state (resets player, etc.)
+        showScreen(mainMenuScreen); // Show the main menu
+        animationFrameId = requestAnimationFrame(gameLoop); // Start the loop for state management
+    }).catch(error => {
+        console.error("Erro ao carregar assets:", error);
+        document.getElementById('game-container').innerHTML = '<p style="color: red;">Erro ao carregar os recursos do jogo. Por favor, tente novamente.</p>';
+    });
 });
