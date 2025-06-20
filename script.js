@@ -1,811 +1,945 @@
-// --- Elementos DOM globais ---
-const menu = document.getElementById('menu');
-const playButton = document.getElementById('play-button');
-const gameArea = document.getElementById('game-container'); // *** CRITICAL FIX: Define gameArea ***
-let player = document.getElementById('player'); // Será obtido ao iniciar o jogo
-
-const hudHp = document.getElementById('hud-hp');
-const hudMp = document.getElementById('hud-mp');
-const hudScore = document.getElementById('hud-score');
-const hudLevel = document.getElementById('hud-level');
-const cardSelectionDiv = document.getElementById('card-selection');
-const cardButtons = document.querySelectorAll('.card-button');
-const maxWaveDisplay = document.getElementById('max-wave');
-
-// --- Game State ---
-let isGameRunning = false;
-let playerX = 100;
-let playerY = 50; // Posição inicial no chão do cenário gerado (bottom-based)
-const playerWidth = 40;
-const playerHeight = 60;
-let playerSpeed = 5;
-
-let isJumping = false;
-let canJump = true;
-let jumpForce = 15;
-let gravity = 0.8;
-let velocityY = 0;
-
-let playerHp = 100;
-let playerMaxHp = 100;
-let playerMp = 50;
-let playerMaxMp = 50;
-let playerLevel = 1;
-let playerMpRegenRate = 0.05;
-let score = 0;
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hudHealthValue = document.getElementById('health-value');
+const hudManaValue = document.getElementById('mana-value');
+const hudLevelValue = document.getElementById('level-value');
+const hudXpValue = document.getElementById('xp-value');
+const hudSpellName = document.getElementById('spell-name');
+const hudWaveValue = document.getElementById('wave-value'); // New HUD element
+const gameOverScreen = document.getElementById('game-over-screen');
+const restartGameBtn = document.getElementById('restart-game');
+const mainMenuScreen = document.getElementById('main-menu-screen');
+const startGameBtn = document.getElementById('start-game-btn');
+const gameContent = document.getElementById('game-content');
+const abilityCardsScreen = document.getElementById('ability-cards-screen'); // New screen element
+const abilityCardOptionsDiv = document.getElementById('ability-card-options'); // Container for cards
+const mobileControlsBar = document.getElementById('mobile-controls-bar');
+const moveLeftBtn = document.getElementById('move-left-btn');
+const moveRightBtn = document.getElementById('move-right-btn');
+const castSpellBtn = document.getElementById('cast-spell-btn');
+const prevSpellBtn = document.getElementById('prev-spell-btn');
+const nextSpellBtn = document.getElementById('next-spell-btn');
+// --- Configurações do Jogo ---
+let GAME_WIDTH;
+let GAME_HEIGHT;
+const PLAYER_SIZE = 50;
+const INITIAL_MONSTER_SIZE = 40;
+const ACTUAL_PLAYER_SIZE = PLAYER_SIZE * 0.4;
+const ACTUAL_MONSTER_BASE_SIZE = INITIAL_MONSTER_SIZE * 0.4;
+const SPELL_SIZE = 20;
+const PLAYER_SPEED = 5;
+const PROJECTILE_BASE_SPEED = 7; // Base speed for projectiles
+const INITIAL_MONSTER_SPEED = 1;
+const XP_PER_MONSTER = 10;
+const LEVEL_UP_XP_BASE = 100;
+const LEVEL_UP_XP_MULTIPLIER = 1.2;
+let CONTROLLER_BAR_HEIGHT = 120; // Default, will be updated in resizeCanvas
+const ASSET_PATHS = {
+    player: './assets/player.png',
+    projectile_player: './assets/projectile_player.png',
+    projectile_monster: './assets/projectile_monster.png',
+    monster_basic: './assets/monster_basic.png',
+    monster_tank: './assets/monster_tank.png',
+    monster_shooter: './assets/monster_shooter.png',
+    monster_fast: './assets/monster_fast.png',
+    monster_healer: './assets/monster_healer.png',
+    monster_exploder: './assets/monster_exploder.png',
+    monster_ghost: './assets/monster_ghost.png',
+    monster_giant_worm: './assets/monster_giant_worm.png',
+    spell_fagulha: './assets/spell_fagulha.png',
+    spell_bola_de_fogo: './assets/spell_bola_de_fogo.png',
+    spell_estilhaco_de_gelo: './assets/spell_estilhaco_de_gelo.png',
+    background: './assets/background.png'
+};
+let loadedAssets = {};
+let player;
+let monsters = [];
+let spells = [];
+let monsterProjectiles = [];
+let poisonClouds = [];
+let keys = {};
+let isMovingLeft = false;
+let isMovingRight = false;
+let gameState = 'MENU'; // Possible states: 'MENU', 'PLAYING', 'WAVE_COMPLETE', 'CHOOSING_ABILITY', 'GAME_OVER'
 let currentWave = 0;
-let enemies = [];
-let playerProjectiles = [];
-let enemyProjectiles = []; // Garantido que seja inicializado como array
-let keysPressed = {};
-let mouseX = 0;
-let mouseY = 0;
-let canShoot = true;
-let shootCooldown = 600; // ms
-let waveDifficultyMultiplier = 1.1;
-let maxReachedWave = 0;
-
-let gameLoopInterval;
-
-// --- Platforms for Collision (bottom-based coordinates) ---
-const platforms = [
-    // Chão invisível na base (bottom = 0) - altura de 1px para colisão
-    { x: 0, y: 0, width: 800, height: 1 },
-    // Plataforma central (bottom = 150)
-    { x: 260, y: 150, width: 280, height: 30 }
-];
-
-// --- Waves Data ---
-const wavesData = [
-    { count: 4, types: ['basic'], baseEnemySpeed: 1.5, spawnDelay: 1500, cards: false },
-    { count: 6, types: ['basic', 'fast'], baseEnemySpeed: 1.8, spawnDelay: 1200, cards: false },
-    { count: 8, types: ['basic', 'fast'], baseEnemySpeed: 2.0, spawnDelay: 1000, cards: true },
-    { count: 10, types: ['basic', 'fast', 'sniper'], baseEnemySpeed: 2.2, spawnDelay: 900, cards: false },
-    { count: 12, types: ['basic', 'fast', 'sniper', 'giant'], baseEnemySpeed: 2.5, spawnDelay: 800, cards: true },
-    { count: 15, types: ['basic', 'fast', 'sniper', 'giant'], baseEnemySpeed: 2.8, spawnDelay: 700, cards: false },
-    { count: 18, types: ['basic', 'fast', 'sniper', 'giant'], baseEnemySpeed: 3.0, spawnDelay: 600, cards: true },
-];
-
-// --- Enemy Classes ---
-class Enemy {
-    constructor(x, y, speed, type) {
-        this.x = x; // Top-based X
-        this.y = y; // Top-based Y
-        this.width = 30;
-        this.height = 30;
-        this.speed = speed;
-        this.type = type;
-        this.element = document.createElement('div');
-        this.element.classList.add('enemy');
-        this.element.classList.add(type);
-        gameArea.appendChild(this.element); // *** Depende de gameArea estar definida ***
-
-        this.horizontalSpeed = 0.5;
-        this.shootInterval = null;
-        this.canShoot = false;
-        this.projectileSpeed = 4;
-        this.hp = 10;
-
-        switch (type) {
-            case 'giant':
-                this.width = 60;
-                this.height = 60;
-                this.speed *= 0.6;
-                this.hp = 30;
-                break;
-            case 'fast':
-                this.width = 25;
-                this.height = 25;
-                this.speed *= 1.5;
-                this.horizontalSpeed *= 1.5;
-                break;
-            case 'sniper':
-                this.canShoot = true;
-                this.hp = 15;
-                this.projectileSpeed = 6;
-                break;
-        }
-
-        this.element.style.width = `${this.width}px`;
-        this.element.style.height = `${this.height}px`;
-        this.element.style.left = `${this.x}px`;
-        this.element.style.top = `${this.y}px`; // Inimigo é posicionado usando 'top'
-
-        this.onGround = false;
-        this.velocityY = 0;
-        console.log(`Enemy spawned: Type ${this.type}, X:${this.x}, Y:${this.y}`); // Log de spawn
+let monstersInWave = 0;
+let monstersKilledInWave = 0;
+let lastMonsterSpawnTime = 0;
+let monsterSpawnDelay = 1500; // Time between monster spawns within a wave
+let playerAnimationOffset = 0;
+const ENTITY_ANIMATION_AMPLITUDE = 5;
+const ENTITY_ANIMATION_SPEED = 5;
+const spellsData = {
+    'Fagulha': { damage: 10, cost: 5, color: 'yellow', cooldown: 100, sprite: 'spell_fagulha', description: "Pequena explosão de energia mágica." },
+    'Bola de Fogo': { damage: 30, cost: 15, color: 'orange', cooldown: 500, sprite: 'spell_bola_de_fogo', description: "Lança uma bola de fogo poderosa." },
+    'Estilhaço de Gelo': { damage: 25, cost: 12, color: 'lightblue', cooldown: 400, sprite: 'spell_estilhaco_de_gelo', description: "Atira um estilhaço que causa dano de gelo." },
+    'Rajada Arcana': { damage: 15, cost: 8, color: 'purple', cooldown: 150, description: "Uma rápida rajada de energia arcana." },
+    'Cura Menor': { heal: 30, cost: 20, color: 'lime', cooldown: 1000, type: 'heal', description: "Recupera uma pequena quantidade de vida." },
+    'Escudo Arcano': { shieldAmount: 50, cost: 25, color: 'cyan', cooldown: 1500, type: 'shield', description: "Cria um escudo temporário." },
+    'Relâmpago': { damage: 40, cost: 30, color: 'gold', cooldown: 800, type: 'aoe_lightning', radius: 100, description: "Um raio atinge inimigos próximos ao jogador." },
+    'Névoa Venenosa': { damagePerTick: 5, tickInterval: 500, duration: 3000, radius: 80, cost: 25, color: 'darkgreen', cooldown: 1200, type: 'aoe_dot', description: "Cria uma nuvem venenosa que causa dano ao longo do tempo." },
+    'Explosão Congelante': { damage: 35, slowFactor: 0.5, slowDuration: 2000, radius: 70, cost: 28, color: 'skyblue', cooldown: 1000, type: 'aoe_slow', description: "Explosão que causa dano e retarda inimigos." },
+    'Drenar Vida': { damage: 20, lifeSteal: 0.5, cost: 18, color: 'darkred', cooldown: 600, type: 'lifesteal', description: "Drena vida dos inimigos para o jogador." },
+    'Tempestade de Meteoros': { damage: 20, numProjectiles: 5, spread: 100, cost: 40, color: 'brown', cooldown: 2000, type: 'multishot', description: "Chuva de meteoros que atinge múltiplos inimigos." }
+};
+let spellLastCastTime = {};
+for (const spellName in spellsData) {
+    spellLastCastTime[spellName] = 0;
+}
+const monsterTypes = {
+    'basic': {
+        color: '#f00', initial: 'B', sizeMultiplier: 1, healthMultiplier: 1, speedMultiplier: 1, canShoot: true, projectileColor: 'red', projectileDamage: 10, shootInterval: 2500, projectileSpeed: PROJECTILE_BASE_SPEED, projectileSize: SPELL_SIZE / 2, xp: 10, contactDamage: 10, sprite: 'monster_basic', animationOffset: 0
+    },
+    'tank': {
+        color: '#8B4513', initial: 'T', sizeMultiplier: 1.5, healthMultiplier: 3, speedMultiplier: 0.7, canShoot: true, projectileColor: '#A0522D', projectileDamage: 15, shootInterval: 3500, projectileSpeed: PROJECTILE_BASE_SPEED * 0.7, projectileSize: SPELL_SIZE * 0.8, xp: 30, contactDamage: 20, sprite: 'monster_tank', animationOffset: 0
+    },
+    'shooter': {
+        color: '#6A5ACD', initial: 'S', sizeMultiplier: 1.1, healthMultiplier: 1.2, speedMultiplier: 0.9, canShoot: true, projectileColor: 'purple', projectileDamage: 12, shootInterval: 1800, projectileSpeed: PROJECTILE_BASE_SPEED * 1.2, projectileSize: SPELL_SIZE * 0.6, xp: 20, contactDamage: 0, sprite: 'monster_shooter', animationOffset: 0
+    },
+    'fast': {
+        color: '#00FFFF', initial: 'F', sizeMultiplier: 0.8, healthMultiplier: 0.7, speedMultiplier: 1.5, canShoot: true, projectileColor: 'cyan', projectileDamage: 8, shootInterval: 2000, projectileSpeed: PROJECTILE_BASE_SPEED * 1.5, projectileSize: SPELL_SIZE * 0.4, xp: 15, contactDamage: 8, sprite: 'monster_fast', animationOffset: 0
+    },
+    'healer': {
+        color: '#00FF00', initial: 'H', sizeMultiplier: 1.0, healthMultiplier: 1.5, speedMultiplier: 0.8, canShoot: false, xp: 25, contactDamage: 5, healAmount: 5, healRadius: 150, healInterval: 1500, lastHealTime: 0, type: 'healer', sprite: 'monster_healer', animationOffset: 0
+    },
+    'exploder': {
+        color: '#FF4500', initial: 'E', sizeMultiplier: 1.2, healthMultiplier: 0.8, speedMultiplier: 1.0, canShoot: false, xp: 20, contactDamage: 30, explosionRadius: 80, type: 'exploder', sprite: 'monster_exploder', animationOffset: 0
+    },
+    'ghost': {
+        color: 'rgba(255,255,255,0.4)', initial: 'G', sizeMultiplier: 0.9, healthMultiplier: 0.9, speedMultiplier: 1.2, canShoot: true, projectileColor: 'lightgray', projectileDamage: 10, shootInterval: 2800, projectileSpeed: PROJECTILE_BASE_SPEED * 1.1, projectileSize: SPELL_SIZE * 0.5, xp: 20, contactDamage: 12, evadeChance: 0.2, type: 'ghost', sprite: 'monster_ghost', animationOffset: 0
+    },
+    'giant_worm': {
+        color: '#A52A2A', initial: 'W', sizeMultiplier: 2.0, healthMultiplier: 5.0, speedMultiplier: 0.5, canShoot: true, projectileColor: 'brown', projectileDamage: 25, shootInterval: 3000, projectileSpeed: PROJECTILE_BASE_SPEED * 0.6, projectileSize: SPELL_SIZE * 1.5, xp: 50, contactDamage: 40, type: 'giant_worm', sprite: 'monster_giant_worm', animationOffset: 0
     }
-
-    // Retorna a coordenada 'top' do chão ou plataforma onde o inimigo deve pousar
-    getGroundY() {
-        let surfaceY = gameArea.offsetHeight; // Default para o chão mais baixo da gameArea (como top-coordinate)
-
-        for (const platform of platforms) {
-            const platformTopEdgeInTopCoords = gameArea.offsetHeight - (platform.y + platform.height);
-
-            if (this.x + this.width > platform.x && this.x < platform.x + platform.width) {
-                if ((this.y + this.height <= platformTopEdgeInTopCoords + 1) && 
-                    (this.y + this.height + this.velocityY) >= platformTopEdgeInTopCoords) {
-                    surfaceY = Math.min(surfaceY, platformTopEdgeInTopCoords);
+};
+const ABILITY_CARDS = [
+    { name: "Aumento de Vida Máxima", description: "+25 Vida Máxima", apply: () => { player.maxHealth += 25; player.health += 25; } },
+    { name: "Aumento de Mana Máxima", description: "+20 Mana Máxima", apply: () => { player.maxMana += 20; player.mana += 20; } },
+    { name: "Regeneração de Mana Aprimorada", description: "+0.05 Mana/Tick", apply: () => { player.manaRegenRate += 0.05; } },
+    { name: "Poder Mágico Aumentado", description: "+0.1 Poder Mágico", apply: () => { player.spellPower += 0.1; } },
+    { name: "Redução de Recarga", description: "-5% Recarga de Magias", apply: () => { player.cooldownReduction = Math.min(0.5, player.cooldownReduction + 0.05); } },
+    { name: "Chance Crítica", description: "+5% Chance Crítica", apply: () => { player.criticalChance = Math.min(0.5, player.criticalChance + 0.05); } },
+    { name: "Velocidade de Movimento", description: "+1 Velocidade de Movimento", apply: () => { player.movementSpeedBonus += 1; } },
+    { name: "Fagulha Aprimorada", description: "Aumento de dano da Fagulha", apply: () => { spellsData['Fagulha'].damage += 5; } },
+    { name: "Bola de Fogo Aprimorada", description: "Aumento de dano da Bola de Fogo", apply: () => { spellsData['Bola de Fogo'].damage += 10; } },
+    { name: "Estilhaço de Gelo Aprimorado", description: "Aumento de dano do Estilhaço de Gelo", apply: () => { spellsData['Estilhaço de Gelo'].damage += 8; } },
+    // Novas magias (exemplo, você deve adicionar os sprites e descrições no spellsData)
+    { name: "Nova Magia: Rajada Arcana", description: "Aprende Rajada Arcana", apply: () => { if (!player.activeSpells.includes('Rajada Arcana')) player.activeSpells.push('Rajada Arcana'); } },
+    { name: "Nova Magia: Cura Menor", description: "Aprende Cura Menor", apply: () => { if (!player.activeSpells.includes('Cura Menor')) player.activeSpells.push('Cura Menor'); } },
+    { name: "Nova Magia: Escudo Arcano", description: "Aprende Escudo Arcano", apply: () => { if (!player.activeSpells.includes('Escudo Arcano')) player.activeSpells.push('Escudo Arcano'); } },
+    { name: "Nova Magia: Relâmpago", description: "Aprende Relâmpago", apply: () => { if (!player.activeSpells.includes('Relâmpago')) player.activeSpells.push('Relâmpago'); } },
+    { name: "Nova Magia: Névoa Venenosa", description: "Aprende Névoa Venenosa", apply: () => { if (!player.activeSpells.includes('Névoa Venenosa')) player.activeSpells.push('Névoa Venenosa'); } },
+    { name: "Nova Magia: Explosão Congelante", description: "Aprende Explosão Congelante", apply: () => { if (!player.activeSpells.includes('Explosão Congelante')) player.activeSpells.push('Explosão Congelante'); } },
+    { name: "Nova Magia: Drenar Vida", description: "Aprende Drenar Vida", apply: () => { if (!player.activeSpells.includes('Drenar Vida')) player.activeSpells.push('Drenar Vida'); } },
+    { name: "Nova Magia: Tempestade de Meteoros", description: "Aprende Tempestade de Meteoros", apply: () => { if (!player.activeSpells.includes('Tempestade de Meteoros')) player.activeSpells.push('Tempestade de Meteoros'); } }
+];
+function loadAssets() {
+    return new Promise(resolve => {
+        let loadedCount = 0;
+        const totalAssets = Object.keys(ASSET_PATHS).length;
+        for (let key in ASSET_PATHS) {
+            const img = new Image();
+            img.src = ASSET_PATHS[key];
+            img.onload = () => {
+                loadedAssets[key] = img;
+                loadedCount++;
+                console.log(`Asset carregado: ${key} (${loadedCount}/${totalAssets})`);
+                if (loadedCount === totalAssets) {
+                    console.log("Todos os assets carregados!");
+                    resolve();
                 }
-            }
+            };
+            img.onerror = () => {
+                console.error(`Falha ao carregar imagem: ${ASSET_PATHS[key]}`);
+                loadedCount++;
+                if (loadedCount === totalAssets) {
+                    console.log("Todos os assets carregados (com erros ou não)!");
+                    resolve();
+                }
+            };
         }
-        return surfaceY; // Retorna uma coordenada 'top'
+    });
+}
+// --- Redimensionamento do Canvas ---
+function resizeCanvas() {
+    const gameContainer = document.getElementById('game-container');
+    
+    CONTROLLER_BAR_HEIGHT = mobileControlsBar.offsetHeight;
+    canvas.width = gameContent.clientWidth;
+    canvas.height = gameContent.clientHeight;
+    GAME_WIDTH = canvas.width;
+    GAME_HEIGHT = canvas.height;
+    if (player) {
+        player.x = GAME_WIDTH / 2 - player.size / 2;
+        player.y = GAME_HEIGHT - player.size - 20;
     }
-
-    move(playerRect) {
-        let targetX = playerRect.left + playerRect.width / 2;
-
-        this.velocityY += gravity;
-        this.y += this.velocityY; // Atualiza a posição Y (top-based)
-
-        let groundYTop = this.getGroundY(); // Obtém o chão como uma coordenada 'top'
-
-        if (this.y + this.height >= groundYTop) {
-            this.y = groundYTop - this.height;
-            this.velocityY = 0;
-            this.onGround = true;
+    console.log(`Canvas resized to: ${GAME_WIDTH}x${GAME_HEIGHT}. Controls height: ${CONTROLLER_BAR_HEIGHT}`);
+}
+window.addEventListener('resize', resizeCanvas);
+// --- Funções de Exibição de Telas ---
+function showScreen(screenElement) {
+    const allScreens = document.querySelectorAll('.game-screen');
+    allScreens.forEach(screen => {
+        screen.classList.remove('active');
+    });
+    screenElement.classList.add('active');
+}
+// --- Funções de Desenho (mantidas as mesmas do último código) ---
+function drawPlayer() {
+    const playerYAdjusted = player.y + playerAnimationOffset;
+    
+    if (loadedAssets.player && loadedAssets.player.complete) {
+        ctx.drawImage(loadedAssets.player, player.x, playerYAdjusted, player.size, player.size);
+    } else {
+        ctx.fillStyle = '#00f';
+        ctx.fillRect(player.x, playerYAdjusted, player.size, player.size);
+        ctx.fillStyle = 'white';
+        ctx.font = `${player.size * 0.6}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('M', player.x + player.size / 2, playerYAdjusted + player.size / 2);
+    }
+    if (player.shield > 0) {
+        ctx.strokeStyle = 'cyan';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(player.x + player.size / 2, playerYAdjusted + player.size / 2, player.size / 2 + 5, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+}
+function drawMonsters() {
+    monsters.forEach(monster => {
+        const monsterYAdjusted = monster.y + monster.animationOffset;
+        const monsterSprite = loadedAssets[monster.sprite];
+        if (monsterSprite && monsterSprite.complete) {
+            ctx.drawImage(monsterSprite, monster.x, monsterYAdjusted, monster.size, monster.size);
         } else {
-            this.onGround = false;
+            ctx.fillStyle = monster.color;
+            ctx.beginPath();
+            ctx.arc(monster.x + monster.size / 2, monsterYAdjusted + monster.size / 2, monster.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.font = `${monster.size * 0.6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(monster.initial, monster.x + monster.size / 2, monsterYAdjusted + monster.size / 2);
         }
-
-        if (this.onGround) {
-            if (this.x < targetX - this.width / 2 - 50) {
-                this.x += this.horizontalSpeed;
-            } else if (this.x > targetX - this.width / 2 + 50) {
-                this.x -= this.horizontalSpeed;
+        const healthBarWidth = monster.size * 0.8;
+        const healthBarHeight = 5;
+        const healthRatio = monster.health / monster.maxHealth;
+        ctx.fillStyle = 'red';
+        ctx.fillRect(monster.x + monster.size * 0.1, monsterYAdjusted - 10, healthBarWidth, healthBarHeight);
+        ctx.fillStyle = 'green';
+        ctx.fillRect(monster.x + monster.size * 0.1, monsterYAdjusted - 10, healthBarWidth * healthRatio, healthBarHeight);
+    });
+}
+function drawSpells() {
+    spells.forEach(spell => {
+        const spellSprite = loadedAssets[spell.sprite];
+        if (spell.type === 'aoe_lightning') {
+            ctx.strokeStyle = spell.color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(spell.x, 0);
+            ctx.lineTo(spell.x, spell.y);
+            ctx.stroke();
+            ctx.fillStyle = spell.color;
+            ctx.beginPath();
+            ctx.arc(spell.x, spell.y, spell.radius / 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
+             ctx.fillStyle = spell.color.replace(')', ', 0.4)');
+             ctx.beginPath();
+             ctx.arc(spell.x, spell.y, spell.radius, 0, Math.PI * 2);
+             ctx.fill();
+        }
+        else {
+            if (spellSprite && spellSprite.complete) {
+                ctx.drawImage(spellSprite, spell.x - SPELL_SIZE / 2, spell.y - SPELL_SIZE / 2, SPELL_SIZE, SPELL_SIZE);
             } else {
-                if (Math.random() < 0.01) {
-                    this.horizontalSpeed *= -1;
-                }
-                this.x += this.horizontalSpeed * 0.5;
+                ctx.fillStyle = spell.color;
+                ctx.beginPath();
+                ctx.arc(spell.x, spell.y, SPELL_SIZE / 2, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
-
-        this.x = Math.max(0, Math.min(this.x, gameArea.offsetWidth - this.width)); // *** Depende de gameArea ***
-        this.y = Math.max(0, Math.min(this.y, gameArea.offsetHeight - this.height)); // *** Depende de gameArea ***
-
-        this.element.style.left = `${this.x}px`;
-        this.element.style.top = `${this.y}px`;
-
-        if (this.type === 'sniper' && this.onGround && this.y < gameArea.offsetHeight * 0.7) {
-            if (!this.shootInterval) {
-                this.shootInterval = setInterval(() => this.shoot(), 2500 / waveDifficultyMultiplier);
-            }
-        } else if (this.type === 'sniper' && (!this.onGround || this.y >= gameArea.offsetHeight * 0.7) && this.shootInterval) {
-            clearInterval(this.shootInterval);
-            this.shootInterval = null;
+    });
+}
+function drawMonsterProjectiles() {
+    monsterProjectiles.forEach(projectile => {
+        const projectileSprite = loadedAssets.projectile_monster; // Assuming a generic monster projectile sprite
+        if (projectileSprite && projectileSprite.complete) {
+            ctx.drawImage(projectileSprite, projectile.x - projectile.size / 2, projectile.y - projectile.size / 2, projectile.size, projectile.size);
+        } else {
+            ctx.fillStyle = projectile.color;
+            ctx.beginPath();
+            ctx.arc(projectile.x, projectile.y, projectile.size / 2, 0, Math.PI * 2);
+            ctx.fill();
         }
+    });
+}
+function drawPoisonClouds() {
+    poisonClouds.forEach(cloud => {
+        if (cloud.duration > 0) {
+            ctx.fillStyle = `rgba(128, 0, 128, ${cloud.duration / spellsData['Névoa Venenosa'].duration * 0.4})`;
+            ctx.beginPath();
+            ctx.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+}
+function updateHUD() {
+    hudHealthValue.textContent = `${player.health}/${player.maxHealth}${player.shield > 0 ? ` (+${player.shield})` : ''}`;
+    hudManaValue.textContent = `${player.mana.toFixed(0)}/${player.maxMana.toFixed(0)}`;
+    hudLevelValue.textContent = player.level;
+    hudXpValue.textContent = `${player.xp}/${player.xpToNextLevel}`;
+    hudSpellName.textContent = player.activeSpells[player.currentSpellIndex];
+    hudWaveValue.textContent = currentWave;
+}
+// --- Lógica do Jogo ---
+function movePlayer() {
+    const currentSpeed = PLAYER_SPEED + player.movementSpeedBonus;
+    if (keys['ArrowLeft'] && player.x > 0) {
+        player.x -= currentSpeed;
     }
-
-    shoot() {
-        if (this.canShoot && isGameRunning) {
-            const projectile = document.createElement('div');
-            projectile.classList.add('projectile');
-            const startX = this.x + this.width / 2 - 5;
-            const startY = this.y + this.height / 2;
-
-            const playerYTopBased = gameArea.offsetHeight - (playerY + playerHeight / 2); // *** Depende de gameArea ***
-            const angle = Math.atan2(playerYTopBased - startY, (playerX + playerWidth / 2) - startX);
-            const vx = Math.cos(angle) * this.projectileSpeed;
-            const vy = Math.sin(angle) * this.projectileSpeed;
-
-            projectile.style.left = `${startX}px`;
-            projectile.style.top = `${startY}px`;
-            gameArea.appendChild(projectile); // *** Depende de gameArea ***
-            enemyProjectiles.push({
-                element: projectile,
-                x: startX,
-                y: startY,
+    if (keys['ArrowRight'] && player.x < GAME_WIDTH - player.size) {
+        player.x += currentSpeed;
+    }
+    if (isMovingLeft && player.x > 0) {
+        player.x -= currentSpeed;
+    }
+    if (isMovingRight && player.x < GAME_WIDTH - player.size) {
+        player.x += currentSpeed;
+    }
+}
+// Gerenciamento de spawns dentro de uma wave
+let monstersToSpawnInCurrentWave = 0;
+let spawnedMonstersCount = 0;
+function spawnMonster() {
+    if (spawnedMonstersCount >= monstersInWave) {
+        return; // All monsters for this wave have been queued
+    }
+    const now = Date.now();
+    if (now - lastMonsterSpawnTime > monsterSpawnDelay) {
+        const x = Math.random() * (GAME_WIDTH - ACTUAL_MONSTER_BASE_SIZE);
+        let monsterTypeKeys = Object.keys(monsterTypes);
+        // Ensure healing and exploding monsters appear only at higher waves
+        let availableTypes = monsterTypeKeys.filter(type =>
+            currentWave >= 1 || (type !== 'healer' && type !== 'exploder' && type !== 'ghost' && type !== 'giant_worm')
+        );
+        let monsterTypeKey;
+        const rand = Math.random();
+        // Adjust monster type probabilities based on wave
+        if (currentWave >= 4 && rand < 0.1) {
+            monsterTypeKey = 'giant_worm';
+        } else if (currentWave >= 3 && rand < 0.2) {
+            monsterTypeKey = 'ghost';
+        } else if (currentWave >= 2.5 && rand < 0.3) {
+            monsterTypeKey = 'exploder';
+        } else if (currentWave >= 2 && rand < 0.4) {
+            monsterTypeKey = 'healer';
+        } else if (rand < 0.5 + (currentWave * 0.05)) { // Increase chance for varied basic types
+            const basicTypes = ['basic', 'shooter', 'tank', 'fast'];
+            monsterTypeKey = basicTypes[Math.floor(Math.random() * basicTypes.length)];
+        } else {
+            monsterTypeKey = 'basic';
+        }
+        // Fallback if selected type isn't available for current wave
+        if (!availableTypes.includes(monsterTypeKey)) {
+            monsterTypeKey = 'basic';
+        }
+        const typeData = monsterTypes[monsterTypeKey];
+        const monsterSize = ACTUAL_MONSTER_BASE_SIZE * typeData.sizeMultiplier * (1 + currentWave * 0.02); // Monsters grow slightly
+        const monsterHealth = 20 * (1 + currentWave * 0.2) * typeData.healthMultiplier; // Health scales with wave
+        const monsterSpeed = INITIAL_MONSTER_SPEED * (1 + (currentWave - 1) * 0.05) * typeData.speedMultiplier;
+        monsters.push({
+            x: x,
+            y: -monsterSize,
+            health: monsterHealth,
+            maxHealth: monsterHealth,
+            speed: monsterSpeed,
+            type: monsterTypeKey,
+            color: typeData.color,
+            initial: typeData.initial,
+            size: monsterSize,
+            canShoot: typeData.canShoot,
+            projectileColor: typeData.projectileColor,
+            projectileDamage: typeData.projectileDamage,
+            shootInterval: typeData.shootInterval,
+            lastShotTime: typeData.lastShotTime || 0,
+            xpValue: typeData.xp + (currentWave * 2), // XP scales with wave
+            contactDamage: typeData.contactDamage * (1 + currentWave * 0.05),
+            healAmount: typeData.healAmount || 0,
+            healRadius: typeData.healRadius || 0,
+            healInterval: typeData.healInterval || 0,
+            lastHealTime: typeData.lastHealTime || 0,
+            explosionRadius: typeData.explosionRadius || 0,
+            evadeChance: typeData.evadeChance || 0,
+            isSlowed: false,
+            slowTimer: 0,
+            sprite: typeData.sprite,
+            projectileSpeed: typeData.projectileSpeed,
+            projectileSize: typeData.projectileSize,
+            targetY: GAME_HEIGHT * 0.3 + (Math.random() * GAME_HEIGHT * 0.2),
+            animationOffset: 0,
+            animationStartTime: now
+        });
+        lastMonsterSpawnTime = now;
+        spawnedMonstersCount++;
+    }
+}
+function moveMonsters() {
+    const now = Date.now();
+    for (let i = monsters.length - 1; i >= 0; i--) { // Loop backwards for safe removal
+        let monster = monsters[i];
+        let currentMonsterSpeed = monster.speed;
+        if (monster.isSlowed && now < monster.slowTimer) {
+            currentMonsterSpeed *= spellsData['Explosão Congelante'].slowFactor;
+        }
+        monster.animationOffset = ENTITY_ANIMATION_AMPLITUDE * Math.sin((now - monster.animationStartTime) * ENTITY_ANIMATION_SPEED * 0.001);
+        let nextX = monster.x;
+        let nextY = monster.y;
+        if (monster.y < monster.targetY) {
+            nextY += currentMonsterSpeed;
+        } else {
+            const monsterCenterX = monster.x + monster.size / 2;
+            const playerCenterX = player.x + player.size / 2;
+            if (monsterCenterX < playerCenterX) {
+                nextX += currentMonsterSpeed;
+            } else if (monsterCenterX > playerCenterX) {
+                nextX -= currentMonsterSpeed;
+            }
+        }
+        let collisionDetected = false;
+        const tempRect = { x: nextX, y: nextY, width: monster.size, height: monster.size };
+        for (let j = 0; j < monsters.length; j++) {
+            if (j === i) continue;
+            const other = monsters[j];
+            const otherRect = { x: other.x, y: other.y, width: other.size, height: other.size };
+            if (tempRect.x < otherRect.x + otherRect.width &&
+                tempRect.x + tempRect.width > otherRect.x &&
+                tempRect.y < otherRect.y + otherRect.height &&
+                tempRect.y + tempRect.height > otherRect.y)
+            {
+                collisionDetected = true;
+                // Basic repulsion: push monster slightly away from the other
+                const dx = tempRect.x - otherRect.x;
+                const dy = tempRect.y - otherRect.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 0) {
+                    nextX += (dx / dist) * 0.5; // Small push
+                    nextY += (dy / dist) * 0.5;
+                }
+                break;
+            }
+        }
+        monster.x = nextX; // Always update position to avoid freezing
+        monster.y = nextY;
+        // Monster Shooting Logic
+        if (monster.canShoot && now - monster.lastShotTime > monster.shootInterval && monster.y > 0 && monster.y < GAME_HEIGHT * 0.7) {
+            const monsterCenterX = monster.x + monster.size / 2;
+            const monsterCenterY = monster.y + monster.size / 2;
+            const playerCenterX = player.x + player.size / 2;
+            const playerCenterY = player.y + player.size / 2;
+            const dx = playerCenterX - monsterCenterX;
+            const dy = playerCenterY - monsterCenterY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const vx = (dx / distance) * monster.projectileSpeed;
+            const vy = (dy / distance) * monster.projectileSpeed;
+            monsterProjectiles.push({
+                x: monsterCenterX,
+                y: monsterCenterY,
+                color: monster.projectileColor,
+                damage: monster.projectileDamage,
+                size: monster.projectileSize,
                 vx: vx,
                 vy: vy
             });
+            monster.lastShotTime = now;
         }
-    }
-
-    takeDamage(amount) {
-        this.hp -= amount;
-        if (this.hp <= 0) {
-            this.element.remove();
-            if (this.shootInterval) clearInterval(this.shootInterval);
-            return true;
+        if (monster.type === 'healer' && now - monster.lastHealTime > monster.healInterval) {
+            monsters.forEach(otherMonster => {
+                const dist = Math.sqrt(
+                    Math.pow((monster.x + monster.size / 2) - (otherMonster.x + otherMonster.size / 2), 2) +
+                    Math.pow((monster.y + monster.size / 2) - (otherMonster.y + otherMonster.size / 2), 2)
+                );
+                if (monster !== otherMonster && dist < monster.healRadius) {
+                    otherMonster.health = Math.min(otherMonster.maxHealth, otherMonster.health + monster.healAmount);
+                }
+            });
+            monster.lastHealTime = now;
         }
-        return false;
-    }
-}
-
-// --- Player Projectile ---
-function createPlayerProjectile() {
-    if (canShoot && isGameRunning && playerMp >= 5) {
-        playerMp -= 5;
-        updateHud();
-        canShoot = false;
-        setTimeout(() => {
-            canShoot = true;
-        }, shootCooldown);
-
-        const projectile = document.createElement('div');
-        projectile.classList.add('projectile');
-        projectile.classList.add('player-projectile');
-        const startX = playerX + playerWidth / 2 - 7.5;
-        const startY = gameArea.offsetHeight - (playerY + playerHeight / 2 - 7.5); // *** Depende de gameArea ***
-
-        projectile.style.left = `${startX}px`;
-        projectile.style.top = `${startY}px`;
-
-        const angle = Math.atan2(mouseY - startY, mouseX - startX);
-        const speed = 15;
-        const velocityX = Math.cos(angle) * speed;
-        const velocityY = Math.sin(angle) * speed;
-
-        gameArea.appendChild(projectile); // *** Depende de gameArea ***
-        playerProjectiles.push({ element: projectile, x: startX, y: startY, vx: velocityX, vy: velocityY });
-    }
-}
-
-function movePlayerProjectiles() {
-    for (let i = playerProjectiles.length - 1; i >= 0; i--) {
-        const p = playerProjectiles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.element.style.left = `${p.x}px`;
-        p.element.style.top = `${p.y}px`;
-
-        if (p.x < 0 || p.x > gameArea.offsetWidth || p.y < 0 || p.y > gameArea.offsetHeight) { // *** Depende de gameArea ***
-            p.element.remove();
-            playerProjectiles.splice(i, 1);
-        }
-    }
-}
-
-function moveEnemyProjectiles() {
-    // Tratamento defensivo adicional para garantir que enemyProjectiles é um array.
-    // O erro "is not defined" aqui frequentemente significa que alguma coisa anterior
-    // impediu a inicialização completa do script. A correção de gameArea deve resolver isso.
-    if (!Array.isArray(enemyProjectiles)) {
-        console.error("enemyProjectiles não é um array! Inicializando defensivamente.", enemyProjectiles);
-        enemyProjectiles = []; // Re-inicializa para evitar erro
-        return;
-    }
-
-    for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
-        const p = enemyProjectiles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.element.style.left = `${p.x}px`;
-        p.element.style.top = `${p.y}px`;
-
-        if (p.x < 0 || p.x > gameArea.offsetWidth || p.y < 0 || p.y > gameArea.offsetHeight) { // *** Depende de gameArea ***
-            p.element.remove();
-            enemyProjectiles.splice(i, 1);
-        }
-    }
-}
-
-// --- Player Movement ---
-let currentGroundY = 0;
-
-function getPlayerGroundY() {
-    let newGroundY = 0;
-
-    for (const platform of platforms) {
-        const playerBottom = playerY;
-        const platformTop = platform.y + platform.height;
-
-        if (playerX + playerWidth > platform.x && playerX < platform.x + platform.width) {
-            if (velocityY <= 0 && playerBottom >= platformTop && (playerBottom + velocityY) <= platformTop) {
-                newGroundY = Math.max(newGroundY, platformTop);
+        if (monster.y > GAME_HEIGHT) {
+            // Monsters that reach bottom without being killed
+            if (monster.type === 'exploder') {
+                monsters.splice(i, 1); // Exploders just disappear
+                continue;
+            }
+            if (monster.type !== 'shooter') { // Shooters don't do contact damage just by passing
+                takeDamage(monster.contactDamage);
+            }
+            monsters.splice(i, 1);
+            if (player.health <= 0) {
+                endGame();
             }
         }
-    }
-    return newGroundY;
+    } // End of for loop
 }
-
-document.addEventListener('keydown', (e) => {
-    console.log('Key pressed:', e.code);
-    keysPressed[e.code] = true;
-    if (e.code === 'Space' && canJump) {
-        isJumping = true;
-        canJump = false;
-        velocityY = jumpForce;
-        console.log('Jump initiated. VelocityY:', velocityY);
-    }
-});
-
-document.addEventListener('keyup', (e) => {
-    delete keysPressed[e.code];
-});
-
-function movePlayer() {
-    if (keysPressed['KeyA']) {
-        playerX -= playerSpeed;
-    }
-    if (keysPressed['KeyD']) {
-        playerX += playerSpeed;
-    }
-
-    velocityY -= gravity;
-    playerY += velocityY;
-
-    currentGroundY = getPlayerGroundY();
-
-    if (playerY <= currentGroundY) {
-        playerY = currentGroundY;
-        velocityY = 0;
-        isJumping = false;
-        canJump = true;
-    }
-
-    playerX = Math.max(0, Math.min(playerX, gameArea.offsetWidth - playerWidth)); // *** Depende de gameArea ***
-    playerY = Math.max(0, Math.min(playerY, gameArea.offsetHeight - playerHeight)); // *** Depende de gameArea ***
-
-    player.style.left = `${playerX}px`;
-    player.style.bottom = `${playerY}px`;
-    console.log(`Player Pos: (X:${playerX.toFixed(1)}, Y:${playerY.toFixed(1)}), VelY:${velocityY.toFixed(1)}, GroundY:${currentGroundY}, CanJump:${canJump}`);
-}
-
-// --- Scenario Generation ---
-function generateScenario() {
-    console.log('Generating scenario...');
-    gameArea.querySelectorAll('.ground-segment, .ground-texture, .castle-tower, .castle-wall, .castle-window, .moon, .cloud').forEach(el => el.remove()); // *** Depende de gameArea ***
-
-    const moon = document.createElement('div');
-    moon.classList.add('moon');
-    moon.style.top = '50px';
-    moon.style.left = '450px';
-    gameArea.appendChild(moon);
-
-    for (let i = 0; i < 5; i++) {
-        const cloud = document.createElement('div');
-        cloud.classList.add('cloud');
-        cloud.classList.add(Math.random() > 0.5 ? 'small' : 'medium');
-        cloud.style.left = `${Math.random() * (gameArea.offsetWidth - 100)}px`; // *** Depende de gameArea ***
-        cloud.style.top = `${Math.random() * 150 + 20}px`;
-        gameArea.appendChild(cloud);
-    }
-
-    // Chão principal (VISUAL APENAS, SEM COLISÃO NO ARRAY platforms, exceto o invisível na base)
-    const mainGround = document.createElement('div');
-    mainGround.classList.add('ground-segment');
-    mainGround.style.width = `${gameArea.offsetWidth}px`; // *** Depende de gameArea ***
-    mainGround.style.height = `50px`;
-    mainGround.style.left = `0px`;
-    mainGround.style.bottom = `0px`;
-    gameArea.appendChild(mainGround);
-
-    const mainGroundTexture = document.createElement('div');
-    mainGroundTexture.classList.add('ground-texture');
-    mainGroundTexture.style.width = `${gameArea.offsetWidth}px`; // *** Depende de gameArea ***
-    mainGroundTexture.style.height = `30px`;
-    mainGroundTexture.style.left = `0px`;
-    mainGroundTexture.style.bottom = `0px`;
-    gameArea.appendChild(mainGroundTexture);
-
-    const platform1 = document.createElement('div');
-    platform1.classList.add('ground-segment');
-    platform1.style.width = `220px`;
-    platform1.style.height = `30px`;
-    platform1.style.left = `0px`;
-    platform1.style.bottom = `110px`;
-    gameArea.appendChild(platform1);
-
-    const platform2 = document.createElement('div');
-    platform2.classList.add('ground-segment');
-    platform2.style.width = `280px`;
-    platform2.style.height = `30px`;
-    platform2.style.left = `260px`;
-    platform2.style.bottom = `150px`;
-    gameArea.appendChild(platform2);
-
-    const platform3 = document.createElement('div');
-    platform3.classList.add('ground-segment');
-    platform3.style.width = `250px`;
-    platform3.style.height = `30px`;
-    platform3.style.left = `550px`;
-    platform3.style.bottom = `100px`;
-    gameArea.appendChild(platform3);
-
-    const tower1 = document.createElement('div');
-    tower1.classList.add('castle-tower');
-    tower1.style.width = `80px`;
-    tower1.style.height = `100px`;
-    tower1.style.left = `310px`;
-    tower1.style.bottom = `180px`;
-    gameArea.appendChild(tower1);
-    const tower1Platform = document.createElement('div');
-    tower1Platform.classList.add('ground-segment');
-    tower1Platform.style.width = `100px`;
-    tower1Platform.style.height = `30px`;
-    tower1Platform.style.left = `300px`;
-    tower1Platform.style.bottom = `220px`;
-    gameArea.appendChild(tower1Platform);
-    let window1_1 = document.createElement('div'); window1_1.classList.add('castle-window'); window1_1.style.left = '340px'; window1_1.style.bottom = '240px'; gameArea.appendChild(window1_1);
-    let window1_2 = document.createElement('div'); window1_2.classList.add('castle-window'); window1_2.style.left = '360px'; window1_2.style.bottom = '240px'; gameArea.appendChild(window1_2);
-
-
-    const tower2 = document.createElement('div');
-    tower2.classList.add('castle-tower');
-    tower2.style.width = `100px`;
-    tower2.style.height = `150px`;
-    tower2.style.left = `620px`;
-    tower2.style.bottom = `170px`;
-    gameArea.appendChild(tower2);
-    const tower2Platform = document.createElement('div');
-    tower2Platform.classList.add('ground-segment');
-    tower2Platform.style.width = `150px`;
-    tower2Platform.style.height = `30px`;
-    tower2Platform.style.left = `600px`;
-    tower2Platform.style.bottom = `200px`;
-    gameArea.appendChild(tower2Platform);
-    let window2_1 = document.createElement('div'); window2_1.classList.add('castle-window'); window2_1.style.left = '650px'; window2_1.style.bottom = '230px'; gameArea.appendChild(window2_1);
-    let window2_2 = document.createElement('div'); window2_2.classList.add('castle-window'); window2_2.style.left = '670px'; window2_2.style.bottom = '230px'; gameArea.appendChild(window2_2);
-
-
-    const platform4 = document.createElement('div');
-    platform4.classList.add('ground-segment');
-    platform4.style.width = `100px`;
-    platform4.style.height = `30px`;
-    platform4.style.left = `0px`;
-    platform4.style.bottom = `220px`;
-    gameArea.appendChild(platform4);
-    console.log('Scenario generation complete.');
-}
-
-
-// --- Enemy Spawning ---
-function spawnEnemy(type, baseSpeed) {
-    const x = Math.random() * (gameArea.offsetWidth - 30); // *** Depende de gameArea ***
-    const enemy = new Enemy(x, -50, baseSpeed * waveDifficultyMultiplier, type);
-    enemies.push(enemy);
-    console.log(`Spawned enemy: ${type} at X:${x}, initial Y:-50`);
-}
-
-function startWave() {
-    console.log(`Starting Wave ${currentWave + 1}...`);
-    currentWave++;
-    if (currentWave > wavesData.length) {
-        isGameRunning = false;
-        alert('Parabéns! Você venceu todas as ondas disponíveis!');
-        showMenu();
-        return;
-    }
-
-    const waveData = wavesData[currentWave - 1];
-    
-    let currentEnemySpeed = waveData.baseEnemySpeed;
-    
-    let enemiesToSpawn = waveData.count;
-    let spawnCount = 0;
-
-    const spawnInterval = setInterval(() => {
-        if (isGameRunning && spawnCount < enemiesToSpawn) {
-            const randomType = waveData.types[Math.floor(Math.random() * waveData.types.length)];
-            spawnEnemy(randomType, currentEnemySpeed);
-            spawnCount++;
-        } else if (spawnCount >= enemiesToSpawn) {
-            clearInterval(spawnInterval);
-        }
-    }, waveData.spawnDelay);
-    console.log(`Wave ${currentWave} setup complete. Enemies to spawn: ${enemiesToSpawn}`);
-}
-
-// --- Card Selection (sem alterações) ---
-const cards = [
-    { name: 'Aura de Cura', description: 'Ganha +1 HP/seg.', effect: () => { playerMaxHp += 0; setInterval(() => { if (isGameRunning) playerHp = Math.min(playerMaxHp, playerHp + 1); updateHud(); }, 1000); } },
-    { name: 'Regen de Mana Acelerado', description: '+0.15 Regen de Mana', effect: () => { playerMpRegenRate += 0.15; } },
-    { name: 'Tiro Rápido', description: 'Cooldown de tiro -20%', effect: () => { shootCooldown *= 0.8; } },
-    { name: 'Mago Robustez', description: '+30 Vida Máx.', effect: () => { playerMaxHp += 30; playerHp += 30; updateHud(); } },
-    { name: 'Aceleração Arcana', description: '+1 Velocidade do Mago', effect: () => { playerSpeed += 1; } },
-    { name: 'Projéteis Fortalecidos', description: 'Aumento de dano nos tiros.', effect: () => { /* Implementar dano em Projectile */ } },
-    { name: 'Recuperação Instantânea', description: 'Restaura 50% de HP e MP.', effect: () => { playerHp = Math.min(playerMaxHp, playerHp + playerMaxHp * 0.5); playerMp = Math.min(playerMaxMp, playerMaxMp + playerMaxMp * 0.5); updateHud(); } },
-    { name: 'Explosão Arcana', description: 'Habilidade ativa: detona inimigos próximos (custo de MP).', effect: () => {
-        alert('Habilidade "Explosão Arcana" adquirida! (Lógica precisa ser implementada)');
-    }},
-];
-
-function showCardSelection() {
-    console.log('Showing card selection...');
-    isGameRunning = false;
-    cardSelectionDiv.style.display = 'flex';
-    const availableCards = [];
-    while (availableCards.length < 3) {
-        const randomIndex = Math.floor(Math.random() * cards.length);
-        if (!availableCards.includes(randomIndex)) {
-            availableCards.push(randomIndex);
+function moveMonsterProjectiles() {
+    for (let i = monsterProjectiles.length - 1; i >= 0; i--) {
+        let projectile = monsterProjectiles[i];
+        projectile.x += projectile.vx;
+        projectile.y += projectile.vy;
+        if (projectile.y < 0 || projectile.y > GAME_HEIGHT || projectile.x < 0 || projectile.x > GAME_WIDTH) {
+            monsterProjectiles.splice(i, 1);
         }
     }
-
-    cardButtons.forEach((button, index) => {
-        const cardData = cards[availableCards[index]];
-        button.innerHTML = `<strong>${cardData.name}</strong><br><span>${cardData.description}</span>`;
-        button.onclick = () => selectCard(availableCards[index]);
-    });
 }
-
-function selectCard(cardIndex) {
-    console.log(`Card selected: ${cards[cardIndex].name}`);
-    cards[cardIndex].effect();
-    cardSelectionDiv.style.display = 'none';
-    isGameRunning = true;
-    startNextWave();
-}
-
-function startNextWave() {
-    console.log('Starting next wave countdown...');
-    setTimeout(startWave, 2000);
-}
-
-// --- Collision Detection (sem alterações na lógica, apenas o funcionamento via gameArea) ---
-function checkCollisions() {
-    if (!player || !player.parentElement) {
-        console.warn("Player element not found or not in DOM during collision check.");
-        return;
-    }
-    const playerRect = player.getBoundingClientRect();
-
-    for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
-        const projectile = enemyProjectiles[i];
-        if (!projectile.element || !projectile.element.parentElement) continue;
-        const projectileRect = projectile.element.getBoundingClientRect();
-
-        if (rectIntersection(playerRect, projectileRect)) {
-            projectile.element.remove();
-            enemyProjectiles.splice(i, 1);
-            playerHp -= 10;
-            updateHud();
-            if (playerHp <= 0) {
-                gameOver();
-                return;
-            }
+function castSpell() {
+    const currentSpellName = player.activeSpells[player.currentSpellIndex];
+    const spellData = spellsData[currentSpellName];
+    const now = Date.now();
+    const effectiveCooldown = spellData.cooldown * (1 - player.cooldownReduction);
+    if (player.mana >= spellData.cost && (now - spellLastCastTime[currentSpellName] > effectiveCooldown)) {
+        player.mana -= spellData.cost;
+        spellLastCastTime[currentSpellName] = now;
+        const spellX = player.x + player.size / 2;
+        const spellY = player.y;
+        let finalDamage = spellData.damage * player.spellPower;
+        if (Math.random() < player.criticalChance && spellData.damage) {
+            finalDamage *= 2;
+            console.log("CRÍTICO!");
         }
-    }
-
-    for (let i = playerProjectiles.length - 1; i >= 0; i--) {
-        const projectile = playerProjectiles[i];
-        if (!projectile.element || !projectile.element.parentElement) continue;
-        const projectileRect = projectile.element.getBoundingClientRect();
-
-        for (let j = enemies.length - 1; j >= 0; j--) {
-            const enemy = enemies[j];
-            if (!enemy.element || !enemy.element.parentElement) continue;
-            const enemyRect = enemy.element.getBoundingClientRect();
-
-            if (rectIntersection(projectileRect, enemyRect)) {
-                projectile.element.remove();
-                playerProjectiles.splice(i, 1);
-                if (enemy.takeDamage(10)) {
-                    score += 10;
-                    updateHud();
+        switch (spellData.type) {
+            case 'heal':
+                player.health = Math.min(player.maxHealth + player.shield, player.health + spellData.heal);
+                break;
+            case 'shield':
+                player.shield += spellData.shieldAmount;
+                break;
+            case 'aoe_lightning':
+                spells.push({ x: spellX, y: spellY, damage: finalDamage, color: spellData.color, type: spellData.type, radius: spellData.radius });
+                monsters.forEach(monster => {
+                    const dist = Math.sqrt(Math.pow(spellX - (monster.x + monster.size / 2), 2) + Math.pow(spellY - (monster.y + monster.size / 2), 2));
+                    if (dist < spellData.radius) {
+                        applyDamageToMonster(monster, finalDamage);
+                    }
+                });
+                break;
+            case 'aoe_dot':
+                poisonClouds.push({
+                    x: spellX, y: spellY, damagePerTick: finalDamage, tickInterval: spellData.tickInterval, duration: spellData.duration, radius: spellData.radius, color: spellData.color, lastTickTime: now
+                });
+                break;
+            case 'aoe_slow':
+                spells.push({ x: spellX, y: spellY, damage: finalDamage, color: spellData.color, type: spellData.type, radius: spellData.radius });
+                monsters.forEach(monster => {
+                    const dist = Math.sqrt(Math.pow(spellX - (monster.x + monster.size / 2), 2) + Math.pow(spellY - (monster.y + monster.size / 2), 2));
+                    if (dist < spellData.radius) {
+                        applyDamageToMonster(monster, finalDamage);
+                        monster.isSlowed = true;
+                        monster.slowTimer = now + spellData.slowDuration;
+                    }
+                });
+                break;
+            case 'lifesteal':
+                spells.push({ x: spellX, y: spellY, damage: finalDamage, color: spellData.color, type: spellData.type, lifeSteal: spellData.lifeSteal });
+                break;
+            case 'multishot':
+                for (let i = 0; i < spellData.numProjectiles; i++) {
+                    const offsetX = (Math.random() - 0.5) * spellData.spread;
+                    spells.push({ x: spellX + offsetX, y: spellY, damage: finalDamage, color: spellData.color, sprite: spellData.sprite });
                 }
                 break;
+            default: // Normal projectiles
+                spells.push({
+                    x: spellX, y: spellY, damage: finalDamage, color: spellData.color, type: spellData.type, sprite: spellData.sprite || 'projectile_player'
+                });
+                break;
+        }
+    }
+}
+function moveSpells() {
+    for (let i = spells.length - 1; i >= 0; i--) { // Loop backwards for safe removal
+        let spell = spells[i];
+        if (spell.type === 'aoe_lightning' || spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
+            if (!spell.spawnTime) spell.spawnTime = Date.now();
+            if (Date.now() - spell.spawnTime > 200) { // AOE effects last short period visually
+                spells.splice(i, 1);
+            }
+        } else {
+            spell.y -= 10;
+            if (spell.y < 0) {
+                spells.splice(i, 1);
             }
         }
     }
-
-    for (let i = 0; i < enemies.length; i++) {
-        const enemy1 = enemies[i];
-        if (!enemy1.element || !enemy1.element.parentElement) continue;
-
-        for (let j = i + 1; j < enemies.length; j++) {
-            const enemy2 = enemies[j];
-            if (!enemy2.element || !enemy2.element.parentElement) continue;
-            
-            const rect1 = enemy1.element.getBoundingClientRect();
-            const rect2 = enemy2.element.getBoundingClientRect();
-
-            if (rectIntersection(rect1, rect2)) {
-                const dx = (rect1.left + rect1.width / 2) - (rect2.left + rect2.width / 2);
-                if (dx > 0) {
-                    enemy1.x += 1;
-                    enemy2.x -= 1;
-                } else {
-                    enemy1.x -= 1;
-                    enemy2.x += 1;
+}
+function applyDamageToMonster(monster, damage) {
+    if (monster.type === 'ghost' && Math.random() < monster.evadeChance) {
+        console.log('Ghost evaded attack!');
+        return;
+    }
+    monster.health -= damage;
+}
+function checkCollisions() {
+    // Player spells vs Monsters
+    for (let i = spells.length - 1; i >= 0; i--) {
+        let spell = spells[i];
+        if (spell.type === 'aoe_lightning' || spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
+            continue; // AOE effects handle damage application directly
+        }
+        for (let j = monsters.length - 1; j >= 0; j--) {
+            let monster = monsters[j];
+            if (spell.x < monster.x + monster.size &&
+                spell.x + SPELL_SIZE > monster.x &&
+                spell.y < monster.y + monster.size &&
+                spell.y + SPELL_SIZE > monster.y) {
+                applyDamageToMonster(monster, spell.damage);
+                if (spell.type === 'lifesteal') {
+                    player.health = Math.min(player.maxHealth + player.shield, player.health + (spell.damage * spell.lifeSteal));
+                }
+                spells.splice(i, 1); // Remove spell after hit
+                // If a spell hits multiple monsters (e.g., piercing), don't splice.
+                // For now, spells hit one monster.
+                
+                if (monster.health <= 0) {
+                    handleMonsterDefeat(monster, j); // Handle monster removal and XP
+                    // Decrement j because the array length changed
+                    // If monster was removed, the monster at new j is the one that moved into its place
+                }
+                break; // Spell hit, stop checking for this spell
+            }
+        }
+    }
+    // Monster Projectiles vs Player
+    for (let i = monsterProjectiles.length - 1; i >= 0; i--) {
+        let projectile = monsterProjectiles[i];
+        const projCenterX = projectile.x + projectile.size / 2;
+        const projCenterY = projectile.y + projectile.size / 2;
+        const playerCenterX = player.x + player.size / 2;
+        const playerCenterY = player.y + player.size / 2;
+        const dist = Math.sqrt(
+            Math.pow(projCenterX - playerCenterX, 2) +
+            Math.pow(projCenterY - playerCenterY, 2)
+        );
+        if (dist < (projectile.size / 2 + player.size / 2)) {
+            takeDamage(projectile.damage);
+            monsterProjectiles.splice(i, 1);
+            if (player.health <= 0) {
+                endGame();
+            }
+        }
+    }
+    // Monsters (contact) vs Player
+    for (let i = monsters.length - 1; i >= 0; i--) {
+        let monster = monsters[i];
+        if (monster.type === 'shooter') { // Shooters only do damage via projectiles
+            continue;
+        }
+        if (monster.y + monster.size > player.y &&
+            monster.y < player.y + player.size &&
+            monster.x + monster.size > player.x &&
+            monster.x < player.x + player.size) {
+            if (monster.type === 'exploder') {
+                takeDamage(monster.contactDamage);
+                monsters.splice(i, 1); // Exploder self-destructs
+            } else {
+                takeDamage(monster.contactDamage);
+                monsters.splice(i, 1);
+            }
+            if (player.health <= 0) {
+                endGame();
+            }
+        }
+    }
+    // Poison Clouds (DOT) vs Monsters
+    const now = Date.now();
+    for (let i = poisonClouds.length - 1; i >= 0; i--) {
+        let cloud = poisonClouds[i];
+        if (now - cloud.lastTickTime > cloud.tickInterval) {
+            for (let j = monsters.length - 1; j >= 0; j--) {
+                let monster = monsters[j];
+                const dist = Math.sqrt(
+                    Math.pow((cloud.x) - (monster.x + monster.size / 2), 2) +
+                    Math.pow((cloud.y) - (monster.y + monster.size / 2), 2),
+                );
+                if (dist < cloud.radius) {
+                    applyDamageToMonster(monster, cloud.damagePerTick);
+                    if (monster.health <= 0) {
+                        handleMonsterDefeat(monster, j);
+                    }
                 }
             }
+            cloud.lastTickTime = now;
         }
-    }
-
-    const currentWaveData = wavesData[currentWave - 1];
-    if (currentWaveData && enemies.length === 0 && isGameRunning) {
-        console.log('Wave cleared!');
-        if (currentWaveData.cards) {
-            showCardSelection();
-        } else {
-            startNextWave();
+        cloud.duration -= (Date.now() - (cloud.lastDurationUpdate || now));
+        cloud.lastDurationUpdate = now;
+        if (cloud.duration <= 0) {
+            poisonClouds.splice(i, 1);
         }
     }
 }
-
-function rectIntersection(rect1, rect2) {
-    return rect1.left < rect2.right &&
-           rect1.right > rect2.left &&
-           rect1.top < rect2.bottom &&
-           rect1.bottom > rect2.top;
-}
-
-// --- Game Over (sem alterações) ---
-function gameOver() {
-    console.log('Game Over!');
-    isGameRunning = false;
-    enemies.forEach(e => {
-        if (e.shootInterval) clearInterval(e.shootInterval);
-    });
-    cancelAnimationFrame(gameLoopInterval);
-    alert(`Game Over! Pontuação: ${score}, Wave: ${currentWave}`);
-    if (currentWave > maxReachedWave) {
-        maxReachedWave = currentWave;
-        localStorage.setItem('maxWave', maxReachedWave);
+function handleMonsterDefeat(monster, index) {
+    if (monster.type === 'exploder') {
+        monsters.forEach(otherMonster => {
+            const dist = Math.sqrt(
+                Math.pow((monster.x + monster.size / 2) - (otherMonster.x + otherMonster.size / 2), 2) +
+                Math.pow((monster.y + monster.size / 2) - (otherMonster.y + otherMonster.size / 2), 2)
+            );
+            if (monster !== otherMonster && dist < monster.explosionRadius) {
+                applyDamageToMonster(otherMonster, monster.contactDamage * 0.5);
+                if (otherMonster.health <= 0) { // Chain reaction check
+                    // This could lead to infinite loop if not careful, simple removal for now
+                    monsters.splice(monsters.indexOf(otherMonster), 1);
+                }
+            }
+        });
+        takeDamage(monster.contactDamage * 0.5); // Exploder does self-damage/player damage on death too
     }
-    showMenu();
+    gainXP(monster.xpValue);
+    monsters.splice(index, 1);
+    monstersKilledInWave++;
 }
-
-// --- Update HUD (sem alterações) ---
-function updateHud() {
-    hudHp.textContent = `${Math.floor(playerHp)}/${playerMaxHp}`;
-    hudMp.textContent = `${Math.floor(playerMp)}/${playerMaxMp}`;
-    hudScore.textContent = score;
-    hudLevel.textContent = playerLevel;
-}
-
-// --- Level Up (sem alterações) ---
-function checkLevelUp() {
-    const pointsForNextLevel = playerLevel * 100;
-    if (score >= pointsForNextLevel) {
-        playerLevel++;
-        playerMaxHp += 20;
-        playerHp = playerMaxHp;
-        playerMaxMp += 10;
-        playerMp = playerMaxMp;
-        playerMpRegenRate += 0.02;
-        playerSpeed += 0.2;
-        updateHud();
-        alert(`Level Up! Você alcançou o Nível ${playerLevel}!`);
-    }
-}
-
-// --- Game Loop ---
-function gameLoop() {
-    console.log('--- Game Loop Iteration ---');
-    console.log('isGameRunning:', isGameRunning);
-    console.log('enemyProjectiles (start of loop):', enemyProjectiles); 
-
-    if (!isGameRunning) {
-        console.log('Game loop stopped because isGameRunning is false.');
-        return;
-    }
-
-    movePlayer();
-    const playerRectForEnemies = player && player.parentElement ? player.getBoundingClientRect() : null;
-    if (playerRectForEnemies) {
-        enemies.forEach(enemy => enemy.move(playerRectForEnemies));
-    }
-    movePlayerProjectiles();
-    moveEnemyProjectiles();
-    checkCollisions();
-    checkLevelUp();
-
-    playerMp = Math.min(playerMaxMp, playerMp + playerMpRegenRate);
-    updateHud();
-
-    enemies = enemies.filter(enemy => {
-        const isValid = enemy.element && enemy.element.parentElement;
-        if (!isValid && enemy.shootInterval) {
-            clearInterval(enemy.shootInterval);
+function takeDamage(amount) {
+    if (player.shield > 0) {
+        const remainingDamage = amount - player.shield;
+        player.shield = Math.max(0, player.shield - amount);
+        if (remainingDamage > 0) {
+            player.health -= remainingDamage;
         }
-        return isValid;
-    });
-    playerProjectiles = playerProjectiles.filter(p => p.element && p.element.parentElement);
-    
-    // O tratamento defensivo ainda é válido, mas o erro original deve ter sido resolvido pela definição de gameArea
-    enemyProjectiles = (Array.isArray(enemyProjectiles) ? enemyProjectiles : [])
-                       .filter(p => p.element && p.element.parentElement);
-    console.log('enemyProjectiles (after filter):', enemyProjectiles);
-
-
-    gameLoopInterval = requestAnimationFrame(gameLoop);
-    console.log('--- End Game Loop Iteration ---');
-}
-
-// --- Event Listeners (gameArea agora está definida) ---
-gameArea.addEventListener('mousemove', (e) => {
-    mouseX = e.offsetX;
-    mouseY = e.offsetY;
-});
-
-gameArea.addEventListener('click', createPlayerProjectile);
-
-playButton.addEventListener('click', () => {
-    startNewGame();
-});
-
-// --- Start New Game ---
-function startNewGame() {
-    console.log('startNewGame called');
-    // Verificação de elementos DOM essenciais (gameArea agora é verificado corretamente)
-    if (!menu || !gameArea || !player) {
-        console.error('Um ou mais elementos DOM essenciais não foram encontrados!', { menu, gameArea, player });
-        alert('Erro ao iniciar o jogo: Componentes essenciais não encontrados. Verifique o console para detalhes.');
-        return;
-    }
-
-    menu.style.display = 'none';
-    console.log('Menu hidden');
-    gameArea.style.display = 'flex'; // *** gameContainer mudou para gameArea ***
-    console.log('Game container shown');
-
-    isGameRunning = true;
-    playerX = 100;
-    playerY = 50;
-    playerHp = 100;
-    playerMaxHp = 100;
-    playerMp = 50;
-    playerMaxMp = 50;
-    playerLevel = 1;
-    playerMpRegenRate = 0.05;
-    score = 0;
-    currentWave = 0;
-    playerSpeed = 5;
-    shootCooldown = 600;
-    waveDifficultyMultiplier = 1.1;
-
-    try {
-        // Limpa elementos de jogo anteriores usando gameArea
-        gameArea.querySelectorAll('.enemy, .projectile, .ground-segment, .ground-texture, .castle-tower, .castle-wall, .castle-window, .moon, .cloud').forEach(el => el.remove());
-        console.log('Previous game elements cleared from gameArea.');
-    } catch (e) {
-        console.error('Error clearing old game elements:', e);
-    }
-    enemies = [];
-    playerProjectiles = [];
-    enemyProjectiles = [];
-    console.log('Arrays de inimigos e projéteis resetados.');
-
-    let existingPlayerElement = document.getElementById('player');
-    if (!existingPlayerElement) {
-        player = document.createElement('div');
-        player.id = 'player';
-        gameArea.appendChild(player); // Adiciona player ao gameArea
-        console.log('Player element was missing, created and appended.');
     } else {
-        if (!gameArea.contains(existingPlayerElement)) {
-            gameArea.appendChild(existingPlayerElement); // Re-adiciona player ao gameArea
-            console.log('Existing player element re-appended to gameArea.');
+        player.health -= amount;
+    }
+    if (player.health < 0) player.health = 0;
+}
+function regenerateMana() {
+    if (player.mana < player.maxMana) {
+        player.mana = Math.min(player.maxMana, player.mana + player.manaRegenRate);
+    }
+}
+function gainXP(amount) {
+    player.xp += amount;
+    if (player.xp >= player.xpToNextLevel) {
+        levelUp();
+    }
+}
+function levelUp() {
+    player.level++;
+    player.xp -= player.xpToNextLevel;
+    player.xpToNextLevel = Math.floor(player.xpToNextLevel * LEVEL_UP_XP_MULTIPLIER);
+    player.maxHealth += 20;
+    player.health = player.maxHealth;
+    player.maxMana += 10;
+    player.mana = player.maxMana;
+    // Player gains an ability card choice on level up if not during wave end
+    if (gameState === 'PLAYING') {
+        pauseGameForAbilityChoice();
+    }
+}
+function endGame() {
+    gameState = 'GAME_OVER';
+    showScreen(gameOverScreen);
+}
+function resetGame() {
+    player = {
+        size: ACTUAL_PLAYER_SIZE,
+        x: GAME_WIDTH / 2 - ACTUAL_PLAYER_SIZE / 2,
+        y: GAME_HEIGHT - ACTUAL_PLAYER_SIZE - 20,
+        health: 100,
+        maxHealth: 100,
+        mana: 100,
+        maxMana: 100,
+        level: 1,
+        xp: 0,
+        xpToNextLevel: LEVEL_UP_XP_BASE,
+        activeSpells: ['Fagulha'],
+        currentSpellIndex: 0,
+        spellPower: 1,
+        manaRegenRate: 0.1,
+        shield: 0,
+        cooldownReduction: 0,
+        criticalChance: 0,
+        movementSpeedBonus: 0
+    };
+    for (const spellName in spellsData) {
+        spellLastCastTime[spellName] = 0;
+    }
+    monsters = [];
+    spells = [];
+    monsterProjectiles = [];
+    poisonClouds = [];
+    keys = {};
+    isMovingLeft = false;
+    isMovingRight = false;
+    lastMonsterSpawnTime = 0;
+    currentWave = 0;
+    monstersInWave = 0;
+    monstersKilledInWave = 0;
+    monsterSpawnDelay = 1500; // Reset spawn delay
+    updateHUD();
+    resizeCanvas();
+}
+function startGame() {
+    resetGame();
+    startNextWave(); // Start the first wave
+}
+function startNextWave() {
+    currentWave++;
+    monstersKilledInWave = 0;
+    spawnedMonstersCount = 0; // Reset count for the new wave
+    // Define number of monsters for this wave
+    monstersInWave = 5 + (currentWave * 2); // Example: 5 monsters + 2 per wave level
+    // Adjust spawn delay for difficulty (faster spawns in later waves)
+    monsterSpawnDelay = Math.max(500, 1500 - (currentWave * 100));
+    gameState = 'PLAYING';
+    showScreen(gameContent);
+    console.log(`Starting Wave ${currentWave} with ${monstersInWave} monsters.`);
+    // Ensure the game loop restarts if it was paused
+    if (!animationFrameId) { // animationFrameId will be set by requestAnimationFrame
+        gameLoop();
+    }
+}
+function generateAbilityCards() {
+    abilityCardOptionsDiv.innerHTML = ''; // Clear previous cards
+    const chosenCards = [];
+    // Ensure variety, pick 3 unique abilities
+    const availableAbilities = [...ABILITY_CARDS]; // Copy to avoid modifying original
+    for (let i = 0; i < 3; i++) {
+        if (availableAbilities.length === 0) break; // No more unique abilities
+        const randomIndex = Math.floor(Math.random() * availableAbilities.length);
+        const chosen = availableAbilities.splice(randomIndex, 1)[0]; // Remove chosen from available
+        // Check for specific conditions (e.g., don't offer new spell if already known)
+        if (chosen.name.startsWith("Nova Magia:") && player.activeSpells.includes(chosen.name.replace("Nova Magia: ", ""))) {
+            i--; // Retry picking another card if this one is redundant
+            continue;
         }
-        player = existingPlayerElement;
+        const cardElement = document.createElement('div');
+        cardElement.classList.add('ability-card');
+        cardElement.innerHTML = `<h3>${chosen.name}</h3><p>${chosen.description}</p>`;
+        cardElement.addEventListener('click', () => {
+            chosen.apply(); // Apply the ability
+            if (chosen.name.startsWith("Nova Magia:")) {
+                player.currentSpellIndex = player.activeSpells.indexOf(chosen.name.replace("Nova Magia: ", "")); // Select new spell
+            }
+            updateHUD();
+            startNextWave(); // Start the next wave
+        });
+        abilityCardOptionsDiv.appendChild(cardElement);
     }
-    player.style.left = `${playerX}px`;
-    player.style.bottom = `${playerY}px`;
-    console.log('Player positioned at starting point.');
-
-    try {
-        generateScenario();
-        console.log('Scenario generated successfully.');
-    } catch (e) {
-        console.error('Error in generateScenario():', e);
-        alert('Erro ao gerar o cenário. Verifique o console.');
-        return;
-    }
-
-    updateHud();
-    console.log('HUD updated.');
-    startWave();
-    console.log('Initial wave started.');
-    
-    if (gameLoopInterval) {
-        cancelAnimationFrame(gameLoopInterval);
-    }
-    gameLoopInterval = requestAnimationFrame(gameLoop);
-    console.log('Game loop initiated.');
 }
-
-// --- Show Menu (gameArea agora está definida) ---
-function showMenu() {
-    console.log('Showing menu...');
-    if (menu) menu.style.display = 'flex';
-    if (gameArea) gameArea.style.display = 'none'; // *** gameContainer mudou para gameArea ***
-    if (maxWaveDisplay) maxWaveDisplay.textContent = localStorage.getItem('maxWave') || 0;
+function pauseGameForAbilityChoice() {
+    gameState = 'CHOOSING_ABILITY';
+    showScreen(abilityCardsScreen);
+    generateAbilityCards();
 }
-
-// --- Initialize ---
-showMenu();
+document.addEventListener('keydown', (e) => {
+    keys[e.key] = true;
+    if (gameState === 'PLAYING') {
+        if (e.key === ' ') {
+            e.preventDefault();
+            castSpell();
+        } else if (e.key === 'q' || e.key === 'Q') {
+            player.currentSpellIndex = (player.currentSpellIndex - 1 + player.activeSpells.length) % player.activeSpells.length;
+            updateHUD();
+        } else if (e.key === 'e' || e.key === 'E') {
+            player.currentSpellIndex = (player.currentSpellIndex + 1) % player.activeSpells.length;
+            updateHUD();
+        }
+    }
+});
+document.addEventListener('keyup', (e) => {
+    keys[e.key] = false;
+});
+// Mobile button listeners
+moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAYING') isMovingLeft = true; });
+moveLeftBtn.addEventListener('touchend', (e) => { e.preventDefault(); isMovingLeft = false; });
+moveLeftBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); isMovingLeft = false; });
+moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAYING') isMovingRight = true; });
+moveRightBtn.addEventListener('touchend', (e) => { e.preventDefault(); isMovingRight = false; });
+moveRightBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); isMovingRight = false; });
+castSpellBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (gameState === 'PLAYING') {
+        castSpell();
+    }
+});
+prevSpellBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (gameState === 'PLAYING') {
+        player.currentSpellIndex = (player.currentSpellIndex - 1 + player.activeSpells.length) % player.activeSpells.length;
+        updateHUD();
+    }
+});
+nextSpellBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (gameState === 'PLAYING') {
+        player.currentSpellIndex = (player.currentSpellIndex + 1) % player.activeSpells.length;
+        updateHUD();
+    }
+});
+startGameBtn.addEventListener('click', startGame);
+restartGameBtn.addEventListener('click', startGame);
+let lastFrameTime = 0;
+let animationFrameId; // To store the requestAnimationFrame ID
+function gameLoop(currentTime) {
+    if (gameState === 'PLAYING') {
+        const deltaTime = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;
+        playerAnimationOffset = ENTITY_ANIMATION_AMPLITUDE * Math.sin(currentTime * ENTITY_ANIMATION_SPEED * 0.001);
+        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        if (loadedAssets.background && loadedAssets.background.complete) {
+            ctx.drawImage(loadedAssets.background, 0, 0, GAME_WIDTH, GAME_HEIGHT);
+        } else {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        }
+        movePlayer();
+        // Only spawn if not all monsters for the wave have been spawned yet
+        if (spawnedMonstersCount < monstersInWave) {
+             spawnMonster();
+        }
+       
+        moveMonsters();
+        moveSpells();
+        moveMonsterProjectiles();
+        checkCollisions();
+        regenerateMana();
+        drawPlayer();
+        drawMonsters();
+        drawSpells();
+        drawMonsterProjectiles();
+        drawPoisonClouds();
+        updateHUD();
+        // Wave End Condition
+        // Check if all spawned monsters are killed AND no monsters are currently on screen
+        if (monstersKilledInWave >= monstersInWave && monsters.length === 0 && monsterProjectiles.length === 0) {
+            console.log(`Wave ${currentWave} complete!`);
+            gameState = 'WAVE_COMPLETE'; // Set state to indicate wave end
+            pauseGameForAbilityChoice(); // Show ability cards
+        }
+    } else if (gameState === 'WAVE_COMPLETE' || gameState === 'CHOOSING_ABILITY' || gameState === 'MENU' || gameState === 'GAME_OVER') {
+        // When paused, still draw the last frame of the game content for context
+        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        if (loadedAssets.background && loadedAssets.background.complete) {
+            ctx.drawImage(loadedAssets.background, 0, 0, GAME_WIDTH, GAME_HEIGHT);
+        } else {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        }
+        drawPlayer();
+        drawMonsters(); // Draw remaining monsters if any (e.g. if game over happened during gameplay)
+        // Do NOT update HUD here, it should only update when PLAYING
+    }
+    animationFrameId = requestAnimationFrame(gameLoop);
+}
+loadAssets().then(() => {
+    console.log("Todos os assets carregados! Exibindo menu inicial...");
+    player = { /* initial player setup will be done in resetGame() */ }; // Initialize player so resizeCanvas works
+    resizeCanvas(); // Initial canvas resize
+    resetGame(); // Set up initial game state (resets player, etc.)
+    showScreen(mainMenuScreen); // Show the main menu
+    animationFrameId = requestAnimationFrame(gameLoop); // Start the loop for state management
+}).catch(error => {
+    console.error("Erro ao carregar assets:", error);
+});
