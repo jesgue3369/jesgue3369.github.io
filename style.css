@@ -13,32 +13,31 @@ body {
 #game-container {
     display: flex;
     flex-direction: column;
-    width: 100vw;
-    height: 100vh;
+    width: 100vw; /* Use 100% da largura da viewport */
+    height: 100vh; /* Use 100% da altura da viewport */
     max-width: 900px; /* Optional: limit game width on very large screens */
-    max-height: 100vh;
+    max-height: 100vh; /* Garante que não exceda a altura da viewport */
     background-color: #111;
     position: relative; /* Para posicionar as telas sobrepostas */
 }
 
 #game-content {
     flex-grow: 1; /* Take remaining space */
-    display: flex;
-    flex-direction: column;
+    display: flex; /* Importante para que o canvas e o HUD se ajustem dentro */
+    flex-direction: column; /* Organiza canvas e HUD verticalmente */
     position: relative; /* Necessário para posicionar o HUD dentro */
     overflow: hidden; /* Hide anything outside canvas */
     border: 2px solid #555;
     box-sizing: border-box;
-    /* Por padrão, game-content será gerenciado por JS (showScreen) */
-    /* display: none;  Removido daqui para ser controlado apenas via JS */
+    /* Remover display: none; daqui. A visibilidade é controlada pela classe .active em .game-screen */
 }
 
 canvas {
-    display: block;
-    background-color: #000;
+    display: block; /* Remove o espaço extra abaixo do canvas */
+    background-color: #000; /* Cor de fundo do canvas caso a imagem não carregue */
     flex-grow: 1; /* Canvas takes all available space within game-content */
-    width: 100%;
-    height: 100%;
+    width: 100%; /* Ocupa toda a largura disponível de game-content */
+    height: 100%; /* Ocupa toda a altura disponível de game-content */
 }
 
 #hud {
@@ -70,7 +69,7 @@ canvas {
     border-top: 1px solid #444;
     box-sizing: border-box;
     min-height: 60px; /* Ensure it has some height */
-    /* display: none; */ /* Será controlado pelo JS, aparecerá com game-content */
+    /* display: none;  Será controlado pelo JS, aparecerá com game-content */
 }
 
 #mobile-controls-bar button {
@@ -109,29 +108,17 @@ canvas {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.9);
+    background-color: rgba(0, 0, 0, 0.9); /* Fundo semi-transparente para as telas de menu */
     color: white;
     justify-content: center;
     align-items: center;
     flex-direction: column;
-    z-index: 100; /* Garante que as telas de overlay estejam no topo */
+    z-index: 100; /* Garante que as telas de overlay estejam no topo, acima do canvas (que está em game-content) */
 }
 
 .game-screen.active {
     display: flex; /* MOSTRAR QUANDO ATIVO - importante! */
 }
-
-/* As telas de overlay já usam .game-screen. Não precisamos de .game-screen-overlay adicionalmente */
-/* .game-screen-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.9);
-    z-index: 100;
-} */
-
 
 .game-screen h1, .game-screen h2 {
     color: #4CAF50;
