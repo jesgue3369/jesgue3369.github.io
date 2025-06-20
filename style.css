@@ -1,250 +1,349 @@
-body {
+body {More actions
     margin: 0;
-    overflow: hidden;
-    background-color: #333;
-    font-family: Arial, sans-serif;
-    color: #eee;
+    overflow: hidden; /* Evita barras de rolagem */
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-}
-
-#menu {
-    background-color: #222;
-    padding: 30px;
-    border-radius: 8px;
-    text-align: center;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
-}
-
-#menu h1 {
-    color: #00ffcc;
-    margin-bottom: 20px;
-    text-shadow: 0 0 10px #00ffcc;
-}
-
-#menu button {
-    padding: 10px 20px;
-    font-size: 16px;
-    background-color: #00ffcc;
-    color: #222;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-#menu button:hover {
-    background-color: #00cc99;
+    min-height: 100vh;
+    background-color: #222; /* Fundo geral do body */
+    font-family: Arial, sans-serif;
+    color: white;
 }
 
 #game-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
+    position: relative; /* Para que .game-screen-overlay posicione absolutamente em relação a ele */
+    width: 100vw;
+    height: 100vh;
+    max-width: 800px; /* Limite a largura do jogo para desktop */
+    max-height: 600px; /* Limite a altura do jogo para desktop */
+    overflow: hidden;
+    background-color: #000; /* Fundo padrão enquanto não carrega imagem */
+    border: 2px solid #555;
     display: flex;
+    flex-direction: column; /* Organiza game-content e mobile-controls-bar verticalmente */
+}
+
+/* Base styles for all screens (both overlay and main game content) */
+.game-screen {
+    display: none; /* Esconde todas as telas por padrão */
     justify-content: center;
     align-items: center;
+    text-align: center;
+    box-sizing: border-box;
+    padding: 20px;
+    flex-direction: column; /* Para conteúdo interno */
+    transition: opacity 0.3s ease-in-out; /* Transição suave */
+    opacity: 0;
+    pointer-events: none; /* Não permite interação quando invisível */
+}
+
+/* Mostra a tela ativa */
+.game-screen.active {
+    display: flex; /* Mostra a tela */
+    opacity: 1;
+    pointer-events: auto; /* Permite interação */
+}
+
+/* Estilos para telas de sobreposição (menu, game over) */
+/* Estilos para telas de sobreposição (menu, game over, ability cards) */
+.game-screen-overlay {
+    position: absolute; /* Aparecem por cima do container */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9); /* Fundo semi-transparente */
+    z-index: 20; /* Garante que fiquem acima do canvas e HUD */
+}
+
+/* Estilos para a tela principal do jogo (onde o canvas está) */
+#game-content {
+    flex-grow: 1; /* Preenche o espaço disponível no #game-container (acima da barra de controles) */
+    position: relative; /* Para posicionar o HUD absolutamente dentro dele */
+    background-color: transparent; /* O canvas terá o fundo da imagem */
+    width: 100%; /* Preenche a largura do #game-container */
+    /* A altura será definida por flex-grow */
+    display: flex; /* Ou 'block', dependendo de como você quer que o canvas se comporte internamente */
+    flex-direction: column; /* Para alinhar itens dentro do game-content se houver mais que o canvas */
+    overflow: hidden; /* Evita que o conteúdo do canvas escape */
+    z-index: 10; /* Abaixo das telas de sobreposição */
+    pointer-events: none; /* Inicia com pointer-events none, ativado apenas quando "active" */
+}
+
+#game-content.active {
+    pointer-events: auto; /* Permite interação quando o jogo está ativo */
+}
+
+
+#gameCanvas {
+    display: block; /* Remove espaço extra abaixo do canvas */
+    background-color: #000; /* Fallback para canvas, se a imagem não carregar */
+    width: 100%; /* Canvas preenche a largura do #game-content */
+    height: 100%; /* Canvas preenche a altura do #game-content */
 }
 
 #hud {
     position: absolute;
-    top: 10px;
-    left: 10px;
+    top: 5px;
+    left: 5px;
     display: flex;
-    gap: 20px;
-    color: #eee;
-    z-index: 100;
+    flex-wrap: wrap;
+    gap: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 8px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    z-index: 5; /* Abaixo das telas de menu */
 }
 
 .hud-item {
-    background-color: rgba(0, 0, 0, 0.5);
-    padding: 8px 15px;
-    border-radius: 5px;
-}
-
-#game-area {
-    width: 800px;
-    height: 500px;
-    background-color: #1a1a1a; /* Cor de fundo escura, similar à imagem */
-    position: relative;
-    overflow: hidden;
-    border: 2px solid #555;
-}
-
-/* Estilos para os elementos do cenário */
-.ground-segment {
-    position: absolute;
-    background-color: #5d5d5d; /* Cor da pedra/chão */
-    border-top: 2px solid #8e8e8e; /* Borda superior para simular textura */
-    box-shadow: inset 0 0 5px rgba(0,0,0,0.3);
-}
-
-.ground-texture {
-    position: absolute;
-    background-color: #4a4a4a; /* Cor mais escura para a parte de baixo da pedra */
-}
-
-.castle-tower {
-    position: absolute;
-    background-color: #4d4d4d; /* Cor das torres */
-    border: 1px solid #6a6a6a;
-}
-
-.castle-wall {
-    position: absolute;
-    background-color: #4d4d4d;
-    border: 1px solid #6a6a6a;
-}
-
-.castle-window {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    background-color: #2a2a2a;
-    border: 1px solid #3a3a3a;
-}
-
-.moon {
-    position: absolute;
-    width: 60px;
-    height: 60px;
-    background-color: #6a6a6a;
-    border-radius: 50%;
-    box-shadow: 0 0 10px rgba(255,255,255,0.1);
-    top: 50px;
-    left: 450px;
-}
-
-.cloud {
-    position: absolute;
-    background-color: #3a3a3a;
-    border-radius: 50%;
-    opacity: 0.8;
-}
-.cloud.small {
-    width: 40px;
-    height: 20px;
-    border-radius: 20px / 10px;
-}
-.cloud.medium {
-    width: 60px;
-    height: 30px;
-    border-radius: 30px / 15px;
-}
-
-#player {
-    position: absolute;
-    width: 40px;
-    height: 60px;
-    background-color: #ff00ff; /* Mago */
-    bottom: 0px;
-    left: 100px;
-    border-radius: 5px;
-    box-shadow: 0 0 15px #ff00ff;
-    transition: left 0.05s linear, bottom 0.05s linear;
-}
-
-.enemy {
-    position: absolute;
-    width: 30px;
-    height: 30px;
-    background-color: #ff3300; /* Inimigo básico */
-    border-radius: 5px;
-    box-shadow: 0 0 10px #ff3300;
-}
-
-.enemy.giant {
-    width: 60px;
-    height: 60px;
-    background-color: #aa0000; /* Inimigo gigante */
-    border-radius: 10px;
-}
-
-.enemy.fast {
-    width: 25px;
-    height: 25px;
-    background-color: #ffa500; /* Inimigo rápido */
-    border-radius: 50%;
-}
-
-.enemy.sniper {
-    background-color: #00aaff; /* Inimigo sniper */
+    padding: 2px 5px;
+    border: 1px solid #777;
     border-radius: 3px;
-    border: 2px solid #0055ff;
+    white-space: nowrap; /* Evita quebras de linha */
 }
 
-.projectile {
-    position: absolute;
-    width: 10px;
-    height: 20px;
-    background-color: #00ffff; /* Projétil inimigo */
-    border-radius: 3px;
-    box-shadow: 0 0 8px #00ffff;
-    transform-origin: center bottom;
+/* Game Over Screen */
+#game-over-screen {
+    background-color: rgba(139, 0, 0, 0.9); /* Vermelho escuro para game over */
 }
 
-.player-projectile {
-    width: 15px;
-    height: 15px;
-    background-color: #cc00cc; /* Projétil do player */
-    border-radius: 50%;
-    box-shadow: 0 0 10px #cc00cc;
+#game-over-screen h2 {
+    color: #ffcccc;
+    font-size: 2em;
+    margin-bottom: 10px;
 }
 
-#card-selection {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.9);
-    padding: 30px;
-    border-radius: 8px;
-    text-align: center;
-    z-index: 101;
-    box-shadow: 0 0 30px rgba(0, 0, 0, 1);
-}
-
-#card-selection h2 {
-    color: #eee;
+#game-over-screen p {
+    font-size: 1.2em;
     margin-bottom: 20px;
 }
 
-.card-options {
+#restart-game {
+    background-color: #ffc107;
+    color: #333;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.1em;
+}
+
+#restart-game:hover {
+    background-color: #e0a800;
+}
+
+/* Ability Cards Screen Styles */
+#ability-cards-screen {
+    background-color: rgba(0, 0, 50, 0.9); /* Dark blue overlay */
+}
+
+/* Mobile Controls */
+#mobile-controls-bar {
+#ability-cards-screen h2 {
+    color: #ADD8E6; /* Light blue */
+    margin-bottom: 30px;
+}
+
+#ability-card-options {
     display: flex;
     gap: 20px;
+    flex-wrap: wrap;
     justify-content: center;
 }
 
-.card-button {
-    width: 150px;
-    height: 180px;
-    padding: 10px;
-    font-size: 1em;
-    background-color: #444;
-    color: #eee;
-    border: 1px solid #888;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.2s ease;
+.ability-card {
+    background-color: rgba(50, 50, 100, 0.8);
+    border: 2px solid #ADD8E6;
+    border-radius: 10px;
+    padding: 20px;
+    width: 200px;
+    height: 150px;
     display: flex;
-    flex-direction: column;
     justify-content: space-around;
+    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 
-.card-button:hover {
-    background-color: #666;
+.ability-card:hover {
     transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.5);
 }
 
-.card-button strong {
+.ability-card h3 {
+    margin-top: 0;
+    color: #FFD700; /* Gold */
     font-size: 1.2em;
-    color: #00ffcc;
 }
-.card-button span {
+
+.ability-card p {
     font-size: 0.9em;
-    color: #ccc;
+    text-align: center;
+    color: #E0E0E0;
+}
+
+
+/* Mobile Controls Bar Styles (Revised Layout) */
+#mobile-controls-bar {
+    display: flex;
+    justify-content: space-between; /* Move left and right groups */
+    align-items: flex-end; /* Align buttons to the bottom of the bar */
+    width: 100%;
+    height: 100px; /* Altura fixa para a barra de controle */
+    height: 120px; /* Increased height for better button spacing */
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 10px 0;
+    padding: 10px; /* Add some padding around */
+    box-sizing: border-box;
+    z-index: 10; /* No mesmo nível do game-content, mas abaixo das overlays */
+    z-index: 10;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column; /* Stack buttons vertically within groups */
+    justify-content: flex-end; /* Align buttons to the bottom */
+    height: 100%; /* Take full height of the bar */
+}
+
+.left-controls {
+    align-items: flex-start; /* Align cast button to the left */
+}
+
+.right-controls {
+    align-items: flex-end; /* Align movement/spell buttons to the right */
+}
+
+.spell-change-buttons {
+    display: flex;
+    gap: 5px; /* Space between prev/next spell buttons */
+    margin-bottom: 5px; /* Space above movement buttons */
+}
+
+.movement-buttons {
+    display: flex;
+    gap: 5px; /* Space between move left/right buttons */
+}
+
+
+#mobile-controls-bar button {
+    background-color: #4CAF50; /* Green */
+    border: none;
+    color: white;
+    padding: 15px 25px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 18px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+    flex-grow: 1; /* Faz os botões crescerem para preencher o espaço */
+    margin: 0 5px; /* Espaçamento entre os botões */
+    min-width: 80px; /* Ensure buttons have a minimum size */
+}
+
+#mobile-controls-bar button:active {
+    background-color: #45a049;
+}
+
+/* Specific button styling for prev/next spell */
+/* Specific button styling */
+#cast-spell-btn {
+    background-color: #f44336; /* Red for Cast */
+    padding: 20px 30px; /* Larger button */
+    font-size: 20px;
+}
+#cast-spell-btn:active {
+    background-color: #da190b;
+}
+
+#prev-spell-btn, #next-spell-btn {
+    background-color: #008CBA; /* Blue */
+    background-color: #008CBA; /* Blue for Spell Change */
+    padding: 10px 15px; /* Smaller buttons */
+    font-size: 16px;
+}
+#prev-spell-btn:active, #next-spell-btn:active {
+    background-color: #007bb5;
+}
+
+#cast-spell-btn {
+    background-color: #f44336; /* Red */
+#move-left-btn, #move-right-btn {
+    background-color: #555; /* Darker gray for Movement */
+    padding: 15px 20px;
+    font-size: 18px;
+}
+#cast-spell-btn:active {
+    background-color: #da190b;
+#move-left-btn:active, #move-right-btn:active {
+    background-color: #333;
+}
+
+
+/* Main Menu Button */
+#main-menu-screen button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 1.5em;
+    border-radius: 10px;
+    cursor: pointer;
+    margin-top: 30px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+#main-menu-screen button:hover {
+    background-color: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+}
+
+/* Responsividade básica para telas menores */
+@media (max-width: 600px) {
+    #game-container {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+    }
+
+    #hud {
+        font-size: 0.8em;
+        padding: 5px;
+        gap: 5px;
+    }
+
+    #mobile-controls-bar {
+        height: 100px; /* Adjust height for smaller screens */
+        padding: 5px;
+    }
+
+    #mobile-controls-bar button {
+        padding: 10px 15px;
+        font-size: 16px;
+        min-width: 60px;
+    }
+
+    #cast-spell-btn {
+        padding: 15px 20px;
+        font-size: 18px;
+    }
+
+    .ability-card {
+        width: 180px;
+        height: 140px;
+        padding: 15px;
+    }
+
+    .ability-card h3 {
+        font-size: 1.1em;
+    }
 }
