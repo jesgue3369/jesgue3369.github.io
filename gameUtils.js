@@ -16,17 +16,35 @@ const gameOverScreen = document.getElementById('game-over-screen');
 const abilityCardsScreen = document.getElementById('ability-cards-screen');
 const abilityCardOptionsDiv = document.getElementById('ability-card-options');
 const mobileControlsBar = document.getElementById('mobile-controls-bar');
+const gameContent = document.getElementById('game-content'); // Importante: obter game-content aqui também
 
 // --- Verificação de Elementos (adicionado para depuração) ---
 document.addEventListener('DOMContentLoaded', () => {
-    if (!mainMenuScreen) console.error("Erro: #main-menu-screen não encontrado!");
-    if (!gameOverScreen) console.error("Erro: #game-over-screen não encontrado!");
-    if (!abilityCardsScreen) console.error("Erro: #ability-cards-screen não encontrado!");
-    if (!abilityCardOptionsDiv) console.error("Erro: #ability-card-options não encontrado!");
-    if (!mobileControlsBar) console.error("Erro: #mobile-controls-bar não encontrado!");
-    if (!hudHealthValue) console.error("Erro: #health-value não encontrado!");
+    // Estas logs são vitais para depurar problemas de 'null'
+    console.log("DOM Carregado - Verificando elementos:");
+    console.log("mainMenuScreen:", mainMenuScreen);
+    console.log("gameOverScreen:", gameOverScreen);
+    console.log("abilityCardsScreen:", abilityCardsScreen);
+    console.log("abilityCardOptionsDiv:", abilityCardOptionsDiv);
+    console.log("mobileControlsBar:", mobileControlsBar);
+    console.log("gameContent:", gameContent); // Adicionado para verificação
+    console.log("hudHealthValue:", hudHealthValue);
     // Adicione verificações para outros elementos se necessário
+
+    if (!mainMenuScreen) console.error("Erro CRÍTICO: #main-menu-screen não encontrado!");
+    if (!gameOverScreen) console.error("Erro CRÍTICO: #game-over-screen não encontrado!");
+    if (!abilityCardsScreen) console.error("Erro CRÍTICO: #ability-cards-screen não encontrado!");
+    if (!abilityCardOptionsDiv) console.error("Erro CRÍTICO: #ability-card-options não encontrado!");
+    if (!mobileControlsBar) console.error("Erro CRÍTICO: #mobile-controls-bar não encontrado!");
+    if (!gameContent) console.error("Erro CRÍTICO: #game-content não encontrado!");
+    if (!hudHealthValue) console.error("Erro: #health-value não encontrado!");
+    if (!hudManaValue) console.error("Erro: #mana-value não encontrado!");
+    if (!hudLevelValue) console.error("Erro: #level-value não encontrado!");
+    if (!hudXpValue) console.error("Erro: #xp-value não encontrado!");
+    if (!hudSpellName) console.error("Erro: #spell-name não encontrado!");
+    if (!hudWaveValue) console.error("Erro: #wave-value não encontrado!");
 });
+
 
 // --- Asset Loading ---
 function loadAssets() {
@@ -70,8 +88,18 @@ function resizeCanvas(canvas, player) {
     // Certifique-se de que mobileControlsBar não é null
     CONTROLLER_BAR_HEIGHT = mobileControlsBar ? mobileControlsBar.offsetHeight : 0;
 
-    canvas.width = document.getElementById('game-content').clientWidth;
-    canvas.height = document.getElementById('game-content').clientHeight;
+    // Use clientWidth/clientHeight do game-content para o canvas
+    // Isso garante que o canvas se ajuste à área visível da div pai
+    if (gameContent) { // Verificação para garantir que gameContent existe
+        canvas.width = gameContent.clientWidth;
+        // Ajusta a altura do canvas subtraindo a altura do HUD e da barra de controle, se aplicável
+        canvas.height = gameContent.clientHeight - (hudHealthValue ? hudHealthValue.offsetHeight : 0) - CONTROLLER_BAR_HEIGHT;
+    } else {
+        // Fallback se gameContent não for encontrado
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight - CONTROLLER_BAR_HEIGHT;
+    }
+
 
     window.GAME_WIDTH = canvas.width; // Atualiza a variável global
     window.GAME_HEIGHT = canvas.height; // Atualiza a variável global
@@ -88,9 +116,11 @@ function showScreen(screenElement) {
     const allScreens = document.querySelectorAll('.game-screen');
     allScreens.forEach(screen => {
         screen.classList.remove('active');
+        // console.log(`Removendo 'active' de: ${screen.id}`); // Para depuração
     });
     if (screenElement) { // Verificação para garantir que o elemento existe
         screenElement.classList.add('active');
+        console.log(`Exibindo tela: ${screenElement.id}`); // Para depuração
     } else {
         console.error("Erro: Tentando mostrar uma tela nula ou indefinida.");
     }
@@ -222,6 +252,7 @@ function updateHUD(player, currentWave) {
 // --- Colisão e Dano ---
 // Adaptação: agora recebe endGameCallback (passado de main.js)
 function takeDamage(player, amount, endGameCallback) {
+    console.log(`Jogador recebeu ${amount} de dano. Vida antes: ${player.health}, Escudo: ${player.shield}`); // Depuração
     if (player.shield > 0) {
         const remainingDamage = amount - player.shield;
         player.shield = Math.max(0, player.shield - amount);
@@ -232,15 +263,17 @@ function takeDamage(player, amount, endGameCallback) {
         player.health -= amount;
     }
     if (player.health < 0) player.health = 0;
+    console.log(`Vida atual: ${player.health}, Escudo atual: ${player.shield}`); // Depuração
 
     if (player.health <= 0) {
+        console.log("Vida do jogador chegou a zero. Chamando endGameCallback."); // Depuração
         endGameCallback(); // Usa o callback passado
     }
 }
 
 function applyDamageToMonster(monster, damage) {
     if (monster.type === 'ghost' && Math.random() < monster.evadeChance) {
-        console.log('Ghost evaded attack!');
+        // console.log('Ghost evaded attack!'); // Pode ser verboso
         return;
     }
     monster.health -= damage;
@@ -266,16 +299,37 @@ function generateAbilityCards(player, startNextWaveCallback) {
 
     const availableAbilities = [...ABILITY_CARDS];
 
-    for (let i = 0; i < 3; i++) {
-        if (availableAbilities.length === 0) break;
+    // Certifique-se de que não estamos em um loop infinito se não houver cartas disponíveis
+    const cardsToGenerate = Math.min(3, availableAbilities.length); 
 
-        const randomIndex = Math.floor(Math.random() * availableAbilities.length);
-        const chosen = availableAbilities.splice(randomIndex, 1)[0];
+    for (let i = 0; i < cardsToGenerate; i++) {
+        let chosen;
+        let attempts = 0;
+        const maxAttempts = availableAbilities.length * 2; // Evita loop infinito em cenários complexos
 
-        if (chosen.name.startsWith("Nova Magia:") && player.activeSpells.includes(chosen.name.replace("Nova Magia: ", ""))) {
-            i--; // Retry to pick another card if this one is already known
-            continue;
+        do {
+            if (availableAbilities.length === 0) {
+                console.warn("Nenhuma habilidade disponível para escolher!");
+                break; // Sai do loop se não houver mais habilidades
+            }
+            const randomIndex = Math.floor(Math.random() * availableAbilities.length);
+            chosen = availableAbilities.splice(randomIndex, 1)[0];
+
+            // Verifica se a magia já foi aprendida e tenta escolher outra
+            if (chosen.name.startsWith("Nova Magia:") && player.activeSpells.includes(chosen.name.replace("Nova Magia: ", ""))) {
+                // Se já tem, adiciona de volta para não perder a carta, mas não a considera para esta rodada
+                // Ou você pode optar por simplesmente descartar e tentar outra sem adicioná-la de volta
+                // Para simplificar, vamos apenas tentar novamente sem adicionar de volta
+                chosen = null; 
+            }
+            attempts++;
+        } while (!chosen && attempts < maxAttempts);
+
+        if (!chosen) {
+            console.warn("Não foi possível encontrar 3 habilidades únicas para escolher.");
+            break; // Sai se não conseguir escolher uma carta válida após várias tentativas
         }
+
 
         const cardElement = document.createElement('div');
         cardElement.classList.add('ability-card');
@@ -283,10 +337,10 @@ function generateAbilityCards(player, startNextWaveCallback) {
         cardElement.addEventListener('click', () => {
             chosen.apply(); // A função apply está dentro do escopo de constants.js, que acessa playerState.player globalmente
             if (chosen.name.startsWith("Nova Magia:")) {
+                // Atualiza o índice da magia atual para a nova magia, se for uma nova magia
                 player.currentSpellIndex = player.activeSpells.indexOf(chosen.name.replace("Nova Magia: ", ""));
             }
             // gameStates é uma variável global em main.js. Aqui, estamos acessando-a diretamente.
-            // Para maior modularidade, gameStates.currentWave poderia ser passado como parâmetro para updateHUD
             updateHUD(player, window.gameStates.currentWave);
             showScreen(window.gameContent); // Mostra a tela do jogo novamente
             startNextWaveCallback(); // Inicia a próxima onda
