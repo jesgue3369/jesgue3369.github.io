@@ -14,16 +14,16 @@ const maxWaveDisplay = document.getElementById('max-wave');
 // --- Game State ---
 let isGameRunning = false;
 let playerX = 100;
-let playerY = 50; // Posição inicial no chão do cenário gerado
+let playerY = 50; // Posição inicial no chão do cenário gerado (bottom-based)
 const playerWidth = 40;
 const playerHeight = 60;
 let playerSpeed = 5;
 
 let isJumping = false;
-let canJump = true; // Para evitar pulos múltiplos no ar
-let jumpForce = 15; // Força inicial do pulo
-let gravity = 0.8; // Gravidade
-let velocityY = 0; // Velocidade vertical do player
+let canJump = true;
+let jumpForce = 15;
+let gravity = 0.8;
+let velocityY = 0;
 
 let playerHp = 100;
 let playerMaxHp = 100;
@@ -35,7 +35,7 @@ let score = 0;
 let currentWave = 0;
 let enemies = [];
 let playerProjectiles = [];
-let enemyProjectiles = [];
+let enemyProjectiles = []; // Garantido que seja inicializado
 let keysPressed = {};
 let mouseX = 0;
 let mouseY = 0;
@@ -44,17 +44,14 @@ let shootCooldown = 600; // ms
 let waveDifficultyMultiplier = 1.1;
 let maxReachedWave = 0;
 
-let gameLoopInterval; // Para o requestAnimationFrame
+let gameLoopInterval;
 
-// --- Platforms for Collision (APENAS A PLATAFORMA CENTRAL É UM COLISOR) ---
+// --- Platforms for Collision (bottom-based coordinates) ---
 const platforms = [
-    // Plataforma central como o ÚNICO colisor
-    // { x: 260, y: 150, width: 280, height: 30 } // Antiga coordenada (bottom = 150)
-    // Ajustando para que o player não caia para fora da tela caso não acerte a plataforma.
-    // Vamos adicionar um "chão" invisível na base da gameArea para que o player sempre tenha onde pousar,
-    // E garantir que a plataforma central ainda funcione como uma plataforma acima do "chão".
-    { x: 0, y: 0, width: 800, height: 1 }, // Chão invisível na base (bottom = 0)
-    { x: 260, y: 150, width: 280, height: 30 } // Plataforma central
+    // Chão invisível na base (bottom = 0) - altura de 1px para colisão
+    { x: 0, y: 0, width: 800, height: 1 },
+    // Plataforma central (bottom = 150)
+    { x: 260, y: 150, width: 280, height: 30 }
 ];
 
 // --- Waves Data ---
@@ -71,8 +68,8 @@ const wavesData = [
 // --- Enemy Classes ---
 class Enemy {
     constructor(x, y, speed, type) {
-        this.x = x;
-        this.y = y;
+        this.x = x; // Top-based X
+        this.y = y; // Top-based Y
         this.width = 30;
         this.height = 30;
         this.speed = speed;
@@ -103,7 +100,6 @@ class Enemy {
                 break;
             case 'sniper':
                 this.canShoot = true;
-                this.shootInterval = setInterval(() => this.shoot(), 2500 / waveDifficultyMultiplier);
                 this.hp = 15;
                 this.projectileSpeed = 6;
                 break;
@@ -112,45 +108,47 @@ class Enemy {
         this.element.style.width = `${this.width}px`;
         this.element.style.height = `${this.height}px`;
         this.element.style.left = `${this.x}px`;
-        this.element.style.top = `${this.y}px`;
+        this.element.style.top = `${this.y}px`; // Inimigo é posicionado usando 'top'
 
         this.onGround = false;
         this.velocityY = 0;
+        console.log(`Enemy spawned: Type ${this.type}, X:${this.x}, Y:${this.y}`); // Log de spawn
     }
 
+    // Retorna a coordenada 'top' do chão ou plataforma onde o inimigo deve pousar
     getGroundY() {
-        let groundY = 0; // Default para o chão mais baixo da gameArea (bottom = 0)
+        let surfaceY = gameArea.offsetHeight; // Default para o chão mais baixo da gameArea (como top-coordinate)
 
         for (const platform of platforms) {
-            const enemyBottom = this.y + this.height; // Posição do bottom do inimigo (top-based + height)
-            const platformTop = gameArea.offsetHeight - (platform.y + platform.height); // Topo da plataforma em relação ao TOP da gameArea
+            // platform.y é a distância do fundo da gameArea (bottom-based)
+            // platform.height é a altura da plataforma
+            // O topo da plataforma em coordenadas 'top-based' é:
+            const platformTopEdgeInTopCoords = gameArea.offsetHeight - (platform.y + platform.height);
 
-            // Verifica sobreposição horizontal e se o inimigo está caindo para a plataforma
+            // Verifica sobreposição horizontal
             if (this.x + this.width > platform.x && this.x < platform.x + platform.width) {
-                // Se o inimigo está caindo e vai pousar na plataforma
-                if (enemyBottom <= platformTop + this.velocityY && (enemyBottom + this.velocityY) >= platformTop) {
-                    groundY = Math.max(groundY, gameArea.offsetHeight - platformTop); // Retorna a coordenada 'bottom' da plataforma
+                // Se o inimigo está acima da plataforma e caindo, e sua próxima posição cruza a plataforma
+                // this.y é a coordenada 'top' do inimigo. this.y + this.height é o 'bottom' do inimigo.
+                if ((this.y + this.height <= platformTopEdgeInTopCoords + 1) && // +1 para buffer
+                    (this.y + this.height + this.velocityY) >= platformTopEdgeInTopCoords) {
+                    surfaceY = Math.min(surfaceY, platformTopEdgeInTopCoords);
                 }
             }
         }
-        return groundY; // Retorna o offset do bottom para o inimigo pousar
+        return surfaceY; // Retorna uma coordenada 'top'
     }
-
 
     move(playerRect) {
         let targetX = playerRect.left + playerRect.width / 2;
 
-        // Gravidade e Colisão com o chão
         this.velocityY += gravity;
-        this.y += this.velocityY;
+        this.y += this.velocityY; // Atualiza a posição Y (top-based)
 
-        let groundYBottom = this.getGroundY(); // Retorna o valor "bottom" para o inimigo
+        let groundYTop = this.getGroundY(); // Obtém o chão como uma coordenada 'top'
 
-        // Converte o groundYBottom para a coordenada "top" para a comparação
-        let groundYTopForEnemy = gameArea.offsetHeight - groundYBottom;
-
-        if (this.y + this.height >= groundYTopForEnemy) {
-            this.y = groundYTopForEnemy - this.height;
+        // Se o fundo do inimigo atingiu ou passou do chão/plataforma
+        if (this.y + this.height >= groundYTop) {
+            this.y = groundYTop - this.height; // Cola o inimigo no chão/plataforma
             this.velocityY = 0;
             this.onGround = true;
         } else {
@@ -172,16 +170,18 @@ class Enemy {
         }
 
         this.x = Math.max(0, Math.min(this.x, gameArea.offsetWidth - this.width));
-        this.y = Math.max(0, Math.min(this.y, gameArea.offsetHeight - this.height));
+        // Garante que o inimigo não suba acima da área de jogo (0)
+        this.y = Math.max(0, Math.min(this.y, gameArea.offsetHeight - this.height)); 
 
         this.element.style.left = `${this.x}px`;
-        this.element.style.top = `${this.y}px`;
+        this.element.style.top = `${this.y}px`; // Posiciona o inimigo usando 'top'
 
+        // Snipers atiram apenas se estiverem no chão e visíveis
         if (this.type === 'sniper' && this.onGround && this.y < gameArea.offsetHeight * 0.7) {
             if (!this.shootInterval) {
                 this.shootInterval = setInterval(() => this.shoot(), 2500 / waveDifficultyMultiplier);
             }
-        } else if (this.type === 'sniper' && !this.onGround && this.shootInterval) {
+        } else if (this.type === 'sniper' && (!this.onGround || this.y >= gameArea.offsetHeight * 0.7) && this.shootInterval) {
             clearInterval(this.shootInterval);
             this.shootInterval = null;
         }
@@ -192,9 +192,11 @@ class Enemy {
             const projectile = document.createElement('div');
             projectile.classList.add('projectile');
             const startX = this.x + this.width / 2 - 5;
-            const startY = this.y + this.height / 2;
+            const startY = this.y + this.height / 2; // Coordenada Y do centro do inimigo (top-based)
 
-            const angle = Math.atan2((playerY + playerHeight / 2) - startY, (playerX + playerWidth / 2) - startX);
+            // Calcula a direção para o player (playerY é bottom-based, então converte para top-based para cálculo)
+            const playerYTopBased = gameArea.offsetHeight - (playerY + playerHeight / 2);
+            const angle = Math.atan2(playerYTopBased - startY, (playerX + playerWidth / 2) - startX);
             const vx = Math.cos(angle) * this.projectileSpeed;
             const vy = Math.sin(angle) * this.projectileSpeed;
 
@@ -236,6 +238,7 @@ function createPlayerProjectile() {
         projectile.classList.add('projectile');
         projectile.classList.add('player-projectile');
         const startX = playerX + playerWidth / 2 - 7.5;
+        // playerY é bottom-based, converte para top-based para posicionamento do projétil
         const startY = gameArea.offsetHeight - (playerY + playerHeight / 2 - 7.5);
 
         projectile.style.left = `${startX}px`;
@@ -282,14 +285,14 @@ function moveEnemyProjectiles() {
 }
 
 // --- Player Movement ---
-let currentGroundY = 0;
+let currentGroundY = 0; // A altura do chão atual do player (distância do bottom da gameArea)
 
-// Encontra o chão mais alto sob o player
+// Encontra o chão mais alto sob o player (bottom-based)
 function getPlayerGroundY() {
     let newGroundY = 0; // O ponto mais alto de "chão" (menor valor Y na tela, distância do bottom)
 
     for (const platform of platforms) {
-        const playerBottom = playerY;
+        const playerBottom = playerY; // Bottom do player em relação ao bottom da gameArea
         const platformTop = platform.y + platform.height; // Topo da plataforma em relação ao bottom da gameArea
 
         // Verifica sobreposição horizontal
@@ -300,16 +303,18 @@ function getPlayerGroundY() {
             }
         }
     }
-    return newGroundY;
+    return newGroundY; // Retorna o offset do bottom
 }
 
 
 document.addEventListener('keydown', (e) => {
+    console.log('Key pressed:', e.code); // Log para verificar o input
     keysPressed[e.code] = true;
     if (e.code === 'Space' && canJump) {
         isJumping = true;
         canJump = false;
         velocityY = jumpForce;
+        console.log('Jump initiated. VelocityY:', velocityY);
     }
 });
 
@@ -318,6 +323,7 @@ document.addEventListener('keyup', (e) => {
 });
 
 function movePlayer() {
+    // Movimento horizontal
     if (keysPressed['KeyA']) {
         playerX -= playerSpeed;
     }
@@ -325,9 +331,11 @@ function movePlayer() {
         playerX += playerSpeed;
     }
 
+    // Aplica gravidade ao player
     velocityY -= gravity;
-    playerY += velocityY;
+    playerY += velocityY; // PlayerY é bottom-based
 
+    // Calcula o chão atual para o player
     currentGroundY = getPlayerGroundY();
 
     if (playerY <= currentGroundY) {
@@ -337,11 +345,15 @@ function movePlayer() {
         canJump = true;
     }
 
+    // Limites da área de jogo
     playerX = Math.max(0, Math.min(playerX, gameArea.offsetWidth - playerWidth));
-    playerY = Math.max(0, Math.min(playerY, gameArea.offsetHeight - playerHeight));
+    playerY = Math.max(0, Math.min(playerY, gameArea.offsetHeight - playerHeight)); // Garante que não saia pelo topo
 
+    // Atualiza a posição CSS do player
     player.style.left = `${playerX}px`;
     player.style.bottom = `${playerY}px`;
+    // Logs detalhados para depuração do movimento do player
+    console.log(`Player Pos: (X:${playerX.toFixed(1)}, Y:${playerY.toFixed(1)}), VelY:${velocityY.toFixed(1)}, GroundY:${currentGroundY}, CanJump:${canJump}`);
 }
 
 // --- Scenario Generation ---
@@ -364,7 +376,7 @@ function generateScenario() {
         gameArea.appendChild(cloud);
     }
 
-    // Chão principal (VISUAL APENAS, SEM COLISÃO NO ARRAY platforms)
+    // Chão principal (VISUAL APENAS, SEM COLISÃO NO ARRAY platforms, exceto o invisível na base)
     const mainGround = document.createElement('div');
     mainGround.classList.add('ground-segment');
     mainGround.style.width = `${gameArea.offsetWidth}px`;
@@ -461,8 +473,10 @@ function generateScenario() {
 // --- Enemy Spawning ---
 function spawnEnemy(type, baseSpeed) {
     const x = Math.random() * (gameArea.offsetWidth - 30);
+    // Inimigos começam acima da tela e caem (Y inicial é top-based)
     const enemy = new Enemy(x, -50, baseSpeed * waveDifficultyMultiplier, type);
     enemies.push(enemy);
+    console.log(`Spawned enemy: ${type} at X:${x}, initial Y:-50`);
 }
 
 function startWave() {
@@ -491,7 +505,7 @@ function startWave() {
             clearInterval(spawnInterval);
         }
     }, waveData.spawnDelay);
-    console.log(`Wave ${currentWave} setup complete.`);
+    console.log(`Wave ${currentWave} setup complete. Enemies to spawn: ${enemiesToSpawn}`);
 }
 
 // --- Card Selection ---
@@ -671,8 +685,12 @@ function checkLevelUp() {
 
 // --- Game Loop ---
 function gameLoop() {
+    console.log('--- Game Loop Iteration ---'); // Log para cada iteração do loop
+    console.log('isGameRunning:', isGameRunning);
+    console.log('enemyProjectiles (start of loop):', enemyProjectiles); // **Crucial para depurar o erro 'is not defined'**
+
     if (!isGameRunning) {
-        console.log('Game loop stopped.');
+        console.log('Game loop stopped because isGameRunning is false.');
         return;
     }
 
@@ -689,11 +707,24 @@ function gameLoop() {
     playerMp = Math.min(playerMaxMp, playerMp + playerMpRegenRate);
     updateHud();
 
-    enemies = enemies.filter(enemy => enemy.element && enemy.element.parentElement);
+    enemies = enemies.filter(enemy => {
+        const isValid = enemy.element && enemy.element.parentElement;
+        if (!isValid && enemy.shootInterval) { // Limpa intervalos se o inimigo for removido
+            clearInterval(enemy.shootInterval);
+        }
+        return isValid;
+    });
     playerProjectiles = playerProjectiles.filter(p => p.element && p.element.parentElement);
-    enemyProjectiles = enemyProjectiles.filter(p => p.element && p.element.parentElement);
+    
+    // **Linha com tratamento defensivo para o erro "is not defined"**
+    // Garante que enemyProjectiles é um array antes de chamar .filter()
+    enemyProjectiles = (Array.isArray(enemyProjectiles) ? enemyProjectiles : [])
+                       .filter(p => p.element && p.element.parentElement);
+    console.log('enemyProjectiles (after filter):', enemyProjectiles); // Confirma o valor após o filtro
+
 
     gameLoopInterval = requestAnimationFrame(gameLoop);
+    console.log('--- End Game Loop Iteration ---'); // Log para o fim da iteração
 }
 
 // --- Event Listeners ---
@@ -724,7 +755,7 @@ function startNewGame() {
 
     isGameRunning = true;
     playerX = 100;
-    playerY = 50; // Ajustado para que o player comece no "chão invisível" se não tiver colisor abaixo
+    playerY = 50; // Posição inicial no "chão invisível" se não atingir a plataforma imediatamente
     playerHp = 100;
     playerMaxHp = 100;
     playerMp = 50;
@@ -745,7 +776,8 @@ function startNewGame() {
     }
     enemies = [];
     playerProjectiles = [];
-    enemyProjectiles = [];
+    enemyProjectiles = []; // Garante que é um array vazio ao iniciar um novo jogo
+    console.log('Arrays de inimigos e projéteis resetados.');
 
     let existingPlayerElement = document.getElementById('player');
     if (!existingPlayerElement) {
