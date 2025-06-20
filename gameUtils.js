@@ -21,15 +21,19 @@ const gameContent = document.getElementById('game-content'); // Importante: obte
 // --- Verificação de Elementos (adicionado para depuração) ---
 document.addEventListener('DOMContentLoaded', () => {
     // Estas logs são vitais para depurar problemas de 'null'
-    console.log("DOM Carregado - Verificando elementos:");
+    console.log("DOMContentLoaded: Verificando elementos HTML em gameUtils.js");
     console.log("mainMenuScreen:", mainMenuScreen);
     console.log("gameOverScreen:", gameOverScreen);
     console.log("abilityCardsScreen:", abilityCardsScreen);
     console.log("abilityCardOptionsDiv:", abilityCardOptionsDiv);
     console.log("mobileControlsBar:", mobileControlsBar);
-    console.log("gameContent:", gameContent); // Adicionado para verificação
+    console.log("gameContent:", gameContent); 
     console.log("hudHealthValue:", hudHealthValue);
-    // Adicione verificações para outros elementos se necessário
+    console.log("hudManaValue:", hudManaValue);
+    console.log("hudLevelValue:", hudLevelValue);
+    console.log("hudXpValue:", hudXpValue);
+    console.log("hudSpellName:", hudSpellName);
+    console.log("hudWaveValue:", hudWaveValue);
 
     if (!mainMenuScreen) console.error("Erro CRÍTICO: #main-menu-screen não encontrado!");
     if (!gameOverScreen) console.error("Erro CRÍTICO: #game-over-screen não encontrado!");
@@ -86,29 +90,53 @@ function loadAssets() {
 // ctx, GAME_WIDTH, GAME_HEIGHT são variáveis globais definidas em main.js
 function resizeCanvas(canvas, player) {
     // Certifique-se de que mobileControlsBar não é null
-    CONTROLLER_BAR_HEIGHT = mobileControlsBar ? mobileControlsBar.offsetHeight : 0;
+    const mobileControlsBarElement = document.getElementById('mobile-controls-bar');
+    // Adicione um console.log para ver o valor de offsetHeight
+    let currentControllerBarHeight = 0;
+    if (mobileControlsBarElement) {
+        currentControllerBarHeight = mobileControlsBarElement.offsetHeight;
+    }
+    window.CONTROLLER_BAR_HEIGHT = currentControllerBarHeight; // Atualiza a variável global
 
-    // Use clientWidth/clientHeight do game-content para o canvas
-    // Isso garante que o canvas se ajuste à área visível da div pai
-    if (gameContent) { // Verificação para garantir que gameContent existe
-        canvas.width = gameContent.clientWidth;
+    console.log("CONTROLLER_BAR_HEIGHT calculado:", window.CONTROLLER_BAR_HEIGHT);
+
+    // Verifique se gameContent existe e tem dimensões válidas
+    const gameContentElement = document.getElementById('game-content');
+    if (gameContentElement) {
+        canvas.width = gameContentElement.clientWidth;
         // Ajusta a altura do canvas subtraindo a altura do HUD e da barra de controle, se aplicável
-        canvas.height = gameContent.clientHeight - (hudHealthValue ? hudHealthValue.offsetHeight : 0) - CONTROLLER_BAR_HEIGHT;
+        // Adicione um console.log para ver o offsetHeight do HUD
+        const hudElement = document.getElementById('hud');
+        const hudHeight = hudElement ? hudElement.offsetHeight : 0;
+        console.log("hudHeight calculado:", hudHeight);
+
+        canvas.height = gameContentElement.clientHeight - hudHeight - window.CONTROLLER_BAR_HEIGHT;
+        console.log(`gameContentClientWidth: ${gameContentElement.clientWidth}, gameContentClientHeight: ${gameContentElement.clientHeight}`);
     } else {
-        // Fallback se gameContent não for encontrado
+        // Fallback se gameContent não for encontrado - este bloco pode ser a causa
+        console.warn("gameContent não encontrado! Usando window.innerWidth/innerHeight como fallback para resizeCanvas.");
         canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight - CONTROLLER_BAR_HEIGHT;
+        canvas.height = window.innerHeight - window.CONTROLLER_BAR_HEIGHT;
     }
 
+    // Verifique se canvas.width ou canvas.height são 0 ou negativos
+    if (canvas.width <= 0 || canvas.height <= 0) {
+        console.error(`ERRO: Canvas tem dimensões inválidas: ${canvas.width}x${canvas.height}`);
+        // Pode definir um tamanho mínimo para garantir que o canvas seja visível para depuração
+        // canvas.width = Math.max(canvas.width, 300);
+        // canvas.height = Math.max(canvas.height, 200);
+    }
 
     window.GAME_WIDTH = canvas.width; // Atualiza a variável global
     window.GAME_HEIGHT = canvas.height; // Atualiza a variável global
+
+    console.log(`Canvas final size: ${window.GAME_WIDTH}x${window.GAME_HEIGHT}`);
 
     if (player) {
         player.x = window.GAME_WIDTH / 2 - player.size / 2;
         player.y = window.GAME_HEIGHT - player.size - 20;
     }
-    console.log(`Canvas redimensionado para: ${window.GAME_WIDTH}x${window.GAME_HEIGHT}. Altura dos controles: ${CONTROLLER_BAR_HEIGHT}`);
+    console.log(`Canvas redimensionado para: ${window.GAME_WIDTH}x${window.GAME_HEIGHT}. Altura dos controles: ${window.CONTROLLER_BAR_HEIGHT}`);
 }
 
 // --- Screen Display Functions ---
@@ -129,6 +157,12 @@ function showScreen(screenElement) {
 // --- Drawing Functions ---
 // Usando window.ctx para acessar o contexto global
 function drawPlayer(player, animationOffset) {
+    // Certifique-se que ctx está definido antes de tentar desenhar
+    if (!window.ctx) {
+        console.error("ERRO: window.ctx não está definido em drawPlayer!");
+        return;
+    }
+
     const playerYAdjusted = player.y + animationOffset;
 
     if (loadedAssets.player && loadedAssets.player.complete) {
@@ -153,6 +187,10 @@ function drawPlayer(player, animationOffset) {
 }
 
 function drawMonsters(monsters) {
+    if (!window.ctx) {
+        console.error("ERRO: window.ctx não está definido em drawMonsters!");
+        return;
+    }
     monsters.forEach(monster => {
         const monsterYAdjusted = monster.y + monster.animationOffset;
         const monsterSprite = loadedAssets[monster.sprite];
@@ -181,6 +219,10 @@ function drawMonsters(monsters) {
 }
 
 function drawSpells(spells) {
+    if (!window.ctx) {
+        console.error("ERRO: window.ctx não está definido em drawSpells!");
+        return;
+    }
     spells.forEach(spell => {
         const spellSprite = loadedAssets[spell.sprite];
         if (spell.type === 'aoe_lightning') {
@@ -215,6 +257,10 @@ function drawSpells(spells) {
 }
 
 function drawMonsterProjectiles(monsterProjectiles) {
+    if (!window.ctx) {
+        console.error("ERRO: window.ctx não está definido em drawMonsterProjectiles!");
+        return;
+    }
     monsterProjectiles.forEach(projectile => {
         const projectileSprite = loadedAssets.projectile_monster;
         if (projectileSprite && projectileSprite.complete) {
@@ -229,6 +275,10 @@ function drawMonsterProjectiles(monsterProjectiles) {
 }
 
 function drawPoisonClouds(poisonClouds) {
+    if (!window.ctx) {
+        console.error("ERRO: window.ctx não está definido em drawPoisonClouds!");
+        return;
+    }
     poisonClouds.forEach(cloud => {
         if (cloud.duration > 0) {
             window.ctx.fillStyle = `rgba(128, 0, 128, ${cloud.duration / SPELLS_DATA['Névoa Venenosa'].duration * 0.4})`;
@@ -317,19 +367,16 @@ function generateAbilityCards(player, startNextWaveCallback) {
 
             // Verifica se a magia já foi aprendida e tenta escolher outra
             if (chosen.name.startsWith("Nova Magia:") && player.activeSpells.includes(chosen.name.replace("Nova Magia: ", ""))) {
-                // Se já tem, adiciona de volta para não perder a carta, mas não a considera para esta rodada
-                // Ou você pode optar por simplesmente descartar e tentar outra sem adicioná-la de volta
-                // Para simplificar, vamos apenas tentar novamente sem adicionar de volta
-                chosen = null; 
+                chosen = null; // Tenta novamente
             }
             attempts++;
         } while (!chosen && attempts < maxAttempts);
 
         if (!chosen) {
-            console.warn("Não foi possível encontrar 3 habilidades únicas para escolher.");
-            break; // Sai se não conseguir escolher uma carta válida após várias tentativas
+            console.warn("Não foi possível encontrar uma habilidade única para escolher.");
+            // Continua para a próxima iteração do loop for, pode resultar em menos de 3 cartas
+            continue; 
         }
-
 
         const cardElement = document.createElement('div');
         cardElement.classList.add('ability-card');
