@@ -2,8 +2,6 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const hudHealthValue = document.getElementById('health-value');
 const hudManaValue = document.getElementById('mana-value');
-// const hudLevelValue = document.getElementById('level-value'); // REMOVIDO
-// const hudXpValue = document.getElementById('xp-value');     // REMOVIDO
 const hudSpellName = document.getElementById('spell-name');
 const hudWaveValue = document.getElementById('wave-value');
 const gameOverScreen = document.getElementById('game-over-screen');
@@ -31,8 +29,7 @@ const SPELL_SIZE = 20;
 const PLAYER_SPEED = 5;
 const PROJECTILE_BASE_SPEED = 7;
 const INITIAL_MONSTER_SPEED = 1;
-// REMOVIDAS CONSTANTES DE XP E NÍVEL
-let CONTROLLER_BAR_HEIGHT = 120;
+let CONTROLLER_BAR_HEIGHT = 120; // Será atualizado dinamicamente
 const ASSET_PATHS = {
     player: './assets/player.png',
     projectile_player: './assets/projectile_player.png',
@@ -154,6 +151,7 @@ function loadAssets() {
             };
             img.onerror = () => {
                 console.error(`Falha ao carregar imagem: ${ASSET_PATHS[key]}`);
+                // Ainda incrementa o contador mesmo em caso de erro para não travar o carregamento total
                 loadedCount++;
                 if (loadedCount === totalAssets) {
                     console.log("Todos os assets carregados (com erros ou não)!");
@@ -166,17 +164,21 @@ function loadAssets() {
 
 // --- Redimensionamento do Canvas ---
 function resizeCanvas() {
-    const gameContainer = document.getElementById('game-container');
-    
+    // Garante que o player existe antes de tentar acessar suas propriedades
+    if (!player) {
+        // Inicializa uma versão básica do player para que o resize possa calcular a posição
+        player = {
+            x: 0, y: 0, size: ACTUAL_PLAYER_SIZE
+        };
+    }
+
     CONTROLLER_BAR_HEIGHT = mobileControlsBar.offsetHeight;
     canvas.width = gameContent.clientWidth;
     canvas.height = gameContent.clientHeight;
     GAME_WIDTH = canvas.width;
     GAME_HEIGHT = canvas.height;
-    if (player) {
-        player.x = GAME_WIDTH / 2 - player.size / 2;
-        player.y = GAME_HEIGHT - player.size - CONTROLLER_BAR_HEIGHT; // Adjusted for controls bar
-    }
+    player.x = GAME_WIDTH / 2 - player.size / 2;
+    player.y = GAME_HEIGHT - player.size - CONTROLLER_BAR_HEIGHT;
     console.log(`Canvas resized to: ${GAME_WIDTH}x${GAME_HEIGHT}. Controls height: ${CONTROLLER_BAR_HEIGHT}`);
 }
 window.addEventListener('resize', resizeCanvas);
@@ -190,10 +192,18 @@ function showScreen(screenElement) {
     screenElement.classList.add('active');
 }
 
-// --- Funções de Desenho (mantidas as mesmas do último código) ---
+// --- Funções de Desenho ---
+function drawBackground() {
+    if (loadedAssets.background && loadedAssets.background.complete) {
+        ctx.drawImage(loadedAssets.background, 0, 0, GAME_WIDTH, GAME_HEIGHT);
+    } else {
+        ctx.fillStyle = '#333';
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
+}
+
 function drawPlayer() {
     const playerYAdjusted = player.y + playerAnimationOffset;
-    
     if (loadedAssets.player && loadedAssets.player.complete) {
         ctx.drawImage(loadedAssets.player, player.x, playerYAdjusted, player.size, player.size);
     } else {
@@ -302,8 +312,6 @@ function drawPoisonClouds() {
 function updateHUD() {
     hudHealthValue.textContent = `${player.health}/${player.maxHealth}${player.shield > 0 ? ` (+${player.shield})` : ''}`;
     hudManaValue.textContent = `${player.mana.toFixed(0)}/${player.maxMana.toFixed(0)}`;
-    // REMOVIDO hudLevelValue.textContent = player.level;
-    // REMOVIDO hudXpValue.textContent = `${player.xp}/${player.xpToNextLevel}`;
     hudSpellName.textContent = player.activeSpells[player.currentSpellIndex];
     hudWaveValue.textContent = currentWave;
 }
@@ -325,7 +333,7 @@ function movePlayer() {
     }
 }
 
-let monstersToSpawnInCurrentWave = 0;
+let monstersToSpawnInCurrentWave = 0; // Esta variável não está sendo usada, pode ser removida se não houver planos para ela.
 let spawnedMonstersCount = 0;
 
 function spawnMonster() {
@@ -377,7 +385,7 @@ function spawnMonster() {
             projectileDamage: typeData.projectileDamage,
             shootInterval: typeData.shootInterval,
             lastShotTime: typeData.lastShotTime || 0,
-            xpValue: typeData.xp + (currentWave * 2), // Keep xpValue for potential future use or scoring
+            xpValue: typeData.xp + (currentWave * 2),
             contactDamage: typeData.contactDamage * (1 + currentWave * 0.05),
             healAmount: typeData.healAmount || 0,
             healRadius: typeData.healRadius || 0,
@@ -387,7 +395,7 @@ function spawnMonster() {
             evadeChance: typeData.evadeChance || 0,
             isSlowed: false,
             slowTimer: 0,
-            sprite: typeData.sprite,
+            sprite: typeData.sprite, // Garante que o sprite está sendo definido
             projectileSpeed: typeData.projectileSpeed,
             projectileSize: typeData.projectileSize,
             targetY: GAME_HEIGHT * 0.3 + (Math.random() * GAME_HEIGHT * 0.2),
@@ -491,7 +499,6 @@ function moveMonsters() {
             if (monster.type === 'exploder') {
                 handleExploderExplosion(monster);
             }
-            // REMOVIDA CHAMADA PARA addXp(monster.xpValue);
             monstersKilledInWave++;
             monsters.splice(i, 1);
         }
@@ -743,8 +750,7 @@ function resetGame() {
         mana: 100,
         maxMana: 100,
         manaRegenRate: 0.1,
-        // REMOVIDOS level, xp, xpToNextLevel
-        activeSpells: ['Fagulha', 'Bola de Fogo', 'Estilhaço de Gelo'], // APENAS AS MAGIAS INICIAIS
+        activeSpells: ['Fagulha', 'Bola de Fogo', 'Estilhaço de Gelo'],
         currentSpellIndex: 0,
         spellPower: 1.0,
         cooldownReduction: 0.0,
@@ -779,9 +785,6 @@ function startNewWave() {
     showScreen(gameContent);
 }
 
-// REMOVIDA FUNÇÃO addXp
-// REMOVIDA FUNÇÃO levelUp
-
 function pauseGameForAbilityChoice() {
     gameState = 'CHOOSING_ABILITY';
     showScreen(abilityCardsScreen);
@@ -800,11 +803,39 @@ function displayAbilityCards() {
     
     // Ensure the player has at least 3 distinct options if possible
     let optionsToChooseFrom = [];
+    // Adiciona algumas opções fixas para garantir que as melhorias básicas sempre apareçam
+    const basicUpgrades = [
+        "Aumento de Vida Máxima",
+        "Aumento de Mana Máxima",
+        "Regeneração de Mana Aprimorada",
+        "Poder Mágico Aumentado",
+        "Redução de Recarga",
+        "Velocidade de Movimento"
+    ];
+
+    // Prioriza 1 ou 2 upgrades básicos se não houver magias novas suficientes
+    for (let i = 0; i < basicUpgrades.length && optionsToChooseFrom.length < 2; i++) {
+        const upgrade = filteredAbilities.find(a => a.name === basicUpgrades[i]);
+        if (upgrade && !optionsToChooseFrom.includes(upgrade)) {
+            optionsToChooseFrom.push(upgrade);
+            filteredAbilities.splice(filteredAbilities.indexOf(upgrade), 1); // Remove para não duplicar
+        }
+    }
+
     while (optionsToChooseFrom.length < 3 && filteredAbilities.length > 0) {
         const randomIndex = Math.floor(Math.random() * filteredAbilities.length);
         const ability = filteredAbilities.splice(randomIndex, 1)[0];
         optionsToChooseFrom.push(ability);
     }
+    // Caso ainda não haja 3 opções, preencher com o que sobrou, garantindo não mais de 3
+    while (optionsToChooseFrom.length < 3 && availableAbilities.length > 0) {
+        const randomIndex = Math.floor(Math.random() * availableAbilities.length);
+        const ability = availableAbilities.splice(randomIndex, 1)[0];
+        if (!optionsToChooseFrom.includes(ability)) {
+            optionsToChooseFrom.push(ability);
+        }
+    }
+
 
     optionsToChooseFrom.forEach(ability => {
         const cardElement = document.createElement('div');
@@ -835,10 +866,16 @@ function handleExploderExplosion(exploder) {
 
 // --- Game Loop ---
 let lastFrameTime = 0;
+let animationFrameId; // Variável para armazenar o ID do requestAnimationFrame
+
 function gameLoop(currentTime) {
     const deltaTime = currentTime - lastFrameTime;
     lastFrameTime = currentTime;
     playerAnimationOffset = ENTITY_ANIMATION_AMPLITUDE * Math.sin(currentTime * ENTITY_ANIMATION_SPEED * 0.001);
+
+    // Sempre limpa o canvas e desenha o background primeiro
+    ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    drawBackground();
 
     if (gameState === 'PLAYING') {
         movePlayer();
@@ -851,30 +888,37 @@ function gameLoop(currentTime) {
         player.mana = Math.min(player.maxMana, player.mana + player.manaRegenRate);
         updateHUD();
 
-        if (monstersKilledInWave >= monstersInWave && monsters.length === 0) {
-            gameState = 'WAVE_COMPLETE';
-            pauseGameForAbilityChoice(); // Trigger ability choice after all monsters are defeated
-        }
-    } else if (gameState === 'WAVE_COMPLETE' || gameState === 'CHOOSING_ABILITY' || gameState === 'MENU' || gameState === 'GAME_OVER') {
-        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        if (loadedAssets.background && loadedAssets.background.complete) {
-            ctx.drawImage(loadedAssets.background, 0, 0, GAME_WIDTH, GAME_HEIGHT);
-        } else {
-            ctx.fillStyle = '#333';
-            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        }
+        // Desenha os elementos do jogo apenas quando está "PLAYING"
         drawPlayer();
         drawMonsters();
+        drawSpells();
+        drawMonsterProjectiles();
+        drawPoisonClouds();
+
+
+        if (monstersKilledInWave >= monstersInWave && monsters.length === 0) {
+            gameState = 'WAVE_COMPLETE'; // Define o estado para 'WAVE_COMPLETE'
+            pauseGameForAbilityChoice(); // Mostra as cartas de habilidade
+        }
+    } else {
+        // Quando não está 'PLAYING' (menu, game over, escolhendo habilidade),
+        // desenhamos o estado atual do jogo (player e monstros) sem atualizá-los,
+        // para que a tela de sobreposição tenha um fundo visual.
+        drawPlayer();
+        drawMonsters();
+        drawSpells(); // Mantenha as magias visíveis se foram lançadas
+        drawMonsterProjectiles(); // Mantenha projéteis visíveis
+        drawPoisonClouds(); // Mantenha as nuvens de veneno visíveis
     }
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
 loadAssets().then(() => {
     console.log("Todos os assets carregados! Exibindo menu inicial...");
-    resizeCanvas();
-    resetGame();
-    showScreen(mainMenuScreen);
-    animationFrameId = requestAnimationFrame(gameLoop);
+    resizeCanvas(); // Ajusta o canvas e inicializa o player para o tamanho correto
+    resetGame(); // Reseta o jogo para o estado inicial
+    showScreen(mainMenuScreen); // Mostra o menu principal
+    animationFrameId = requestAnimationFrame(gameLoop); // Inicia o loop do jogo
 }).catch(error => {
     console.error("Erro ao carregar assets:", error);
     document.getElementById('game-container').innerHTML = '<p style="color: red;">Erro ao carregar os recursos do jogo. Por favor, tente novamente.</p>';
@@ -910,7 +954,11 @@ prevSpellBtn.addEventListener('click', () => {
     updateHUD();
 });
 
+// Mobile Controls
 moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isMovingLeft = true; }, { passive: false });
 moveLeftBtn.addEventListener('touchend', () => { isMovingLeft = false; });
+moveLeftBtn.addEventListener('touchcancel', () => { isMovingLeft = false; }); // Adicionado para robustez
+
 moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isMovingRight = true; }, { passive: false });
 moveRightBtn.addEventListener('touchend', () => { isMovingRight = false; });
+moveRightBtn.addEventListener('touchcancel', () => { isMovingRight = false; }); // Adicionado para robustez
