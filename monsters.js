@@ -5,7 +5,7 @@ let monsterProjectiles = [];
 
 let lastMonsterSpawnTime = 0;
 
-function spawnMonster(currentWave, monstersInWave, spawnedMonstersCount, GAME_WIDTH, GAME_HEIGHT) {
+function spawnMonster(currentWave, monstersInWave, spawnedMonstersCount, GAME_WIDTH_GLOBAL, GAME_HEIGHT_GLOBAL) {
     if (spawnedMonstersCount >= monstersInWave) {
         return;
     }
@@ -14,7 +14,7 @@ function spawnMonster(currentWave, monstersInWave, spawnedMonstersCount, GAME_WI
     let monsterSpawnDelay = Math.max(500, 1500 - (currentWave * 100)); // Adjusted dynamically
 
     if (now - lastMonsterSpawnTime > monsterSpawnDelay) {
-        const x = Math.random() * (GAME_WIDTH - ACTUAL_MONSTER_BASE_SIZE);
+        const x = Math.random() * (GAME_WIDTH_GLOBAL - ACTUAL_MONSTER_BASE_SIZE);
 
         let monsterTypeKeys = Object.keys(MONSTER_TYPES);
         let availableTypes = monsterTypeKeys.filter(type =>
@@ -75,7 +75,7 @@ function spawnMonster(currentWave, monstersInWave, spawnedMonstersCount, GAME_WI
             sprite: typeData.sprite,
             projectileSpeed: typeData.projectileSpeed,
             projectileSize: typeData.projectileSize,
-            targetY: GAME_HEIGHT * 0.3 + (Math.random() * GAME_HEIGHT * 0.2),
+            targetY: GAME_HEIGHT_GLOBAL * 0.3 + (Math.random() * GAME_HEIGHT_GLOBAL * 0.2),
             animationOffset: 0,
             animationStartTime: now
         });
@@ -140,7 +140,8 @@ function moveMonsters(player, endGameCallback) {
         monster.y = nextY;
 
         // Monster Shooting Logic
-        if (monster.canShoot && now - monster.lastShotTime > monster.shootInterval && monster.y > 0 && monster.y < GAME_HEIGHT * 0.7) {
+        // Usando window.GAME_HEIGHT para acessar a variável global
+        if (monster.canShoot && now - monster.lastShotTime > monster.shootInterval && monster.y > 0 && monster.y < window.GAME_HEIGHT * 0.7) {
             const monsterCenterX = monster.x + monster.size / 2;
             const monsterCenterY = monster.y + monster.size / 2;
             const playerCenterX = player.x + player.size / 2;
@@ -178,12 +179,13 @@ function moveMonsters(player, endGameCallback) {
             monster.lastHealTime = now;
         }
 
-        if (monster.y > GAME_HEIGHT) {
+        // Usando window.GAME_HEIGHT para acessar a variável global
+        if (monster.y > window.GAME_HEIGHT) {
             if (monster.type === 'exploder') {
                 monsters.splice(i, 1);
                 continue;
             }
-            if (monster.type !== 'shooter') {
+            if (monster.type !== 'shooter') { // Only non-shooter monsters cause contact damage if they pass by
                 takeDamage(player, monster.contactDamage, endGameCallback);
             }
             monsters.splice(i, 1);
@@ -197,12 +199,14 @@ function moveMonsterProjectiles() {
         projectile.x += projectile.vx;
         projectile.y += projectile.vy;
 
-        if (projectile.y < 0 || projectile.y > GAME_HEIGHT || projectile.x < 0 || projectile.x > GAME_WIDTH) {
+        // Usando window.GAME_WIDTH e window.GAME_HEIGHT para acessar as variáveis globais
+        if (projectile.y < 0 || projectile.y > window.GAME_HEIGHT || projectile.x < 0 || projectile.x > window.GAME_WIDTH) {
             monsterProjectiles.splice(i, 1);
         }
     }
 }
 
+// Adaptação: agora recebe player e gainXPCallback (passados de main.js)
 function handleMonsterDefeat(monster, index, player, gainXPCallback) {
     if (monster.type === 'exploder') {
         monsters.forEach(otherMonster => {
@@ -221,9 +225,12 @@ function handleMonsterDefeat(monster, index, player, gainXPCallback) {
                 }
             }
         });
-        takeDamage(player, monster.contactDamage * 0.5, () => {}); // Exploder does self-damage/player damage on death too, no game over
+        // Exploder does self-damage/player damage on death too, no game over
+        // endGameCallback is not relevant here for explosion damage specifically
+        takeDamage(player, monster.contactDamage * 0.5, () => {});
     }
-    gainXPCallback(player, monster.xpValue);
+    gainXPCallback(player, monster.xpValue, levelUp); // Pass levelUp as a callback to gainXP
     monsters.splice(index, 1);
-    gameStates.monstersKilledInWave++; // Access global game state
+    // gameStates é uma variável global em main.js. Aqui, estamos acessando-a diretamente.
+    window.gameStates.monstersKilledInWave++;
 }
