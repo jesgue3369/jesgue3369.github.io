@@ -1,7 +1,8 @@
+// --- Elementos DOM globais ---
 const menu = document.getElementById('menu');
 const playButton = document.getElementById('play-button');
-const gameContainer = document.getElementById('game-container');
-let player = document.getElementById('player');
+const gameArea = document.getElementById('game-container'); // *** CRITICAL FIX: Define gameArea ***
+let player = document.getElementById('player'); // Será obtido ao iniciar o jogo
 
 const hudHp = document.getElementById('hud-hp');
 const hudMp = document.getElementById('hud-mp');
@@ -35,7 +36,7 @@ let score = 0;
 let currentWave = 0;
 let enemies = [];
 let playerProjectiles = [];
-let enemyProjectiles = []; // Garantido que seja inicializado
+let enemyProjectiles = []; // Garantido que seja inicializado como array
 let keysPressed = {};
 let mouseX = 0;
 let mouseY = 0;
@@ -77,7 +78,7 @@ class Enemy {
         this.element = document.createElement('div');
         this.element.classList.add('enemy');
         this.element.classList.add(type);
-        gameArea.appendChild(this.element);
+        gameArea.appendChild(this.element); // *** Depende de gameArea estar definida ***
 
         this.horizontalSpeed = 0.5;
         this.shootInterval = null;
@@ -120,16 +121,10 @@ class Enemy {
         let surfaceY = gameArea.offsetHeight; // Default para o chão mais baixo da gameArea (como top-coordinate)
 
         for (const platform of platforms) {
-            // platform.y é a distância do fundo da gameArea (bottom-based)
-            // platform.height é a altura da plataforma
-            // O topo da plataforma em coordenadas 'top-based' é:
             const platformTopEdgeInTopCoords = gameArea.offsetHeight - (platform.y + platform.height);
 
-            // Verifica sobreposição horizontal
             if (this.x + this.width > platform.x && this.x < platform.x + platform.width) {
-                // Se o inimigo está acima da plataforma e caindo, e sua próxima posição cruza a plataforma
-                // this.y é a coordenada 'top' do inimigo. this.y + this.height é o 'bottom' do inimigo.
-                if ((this.y + this.height <= platformTopEdgeInTopCoords + 1) && // +1 para buffer
+                if ((this.y + this.height <= platformTopEdgeInTopCoords + 1) && 
                     (this.y + this.height + this.velocityY) >= platformTopEdgeInTopCoords) {
                     surfaceY = Math.min(surfaceY, platformTopEdgeInTopCoords);
                 }
@@ -146,16 +141,14 @@ class Enemy {
 
         let groundYTop = this.getGroundY(); // Obtém o chão como uma coordenada 'top'
 
-        // Se o fundo do inimigo atingiu ou passou do chão/plataforma
         if (this.y + this.height >= groundYTop) {
-            this.y = groundYTop - this.height; // Cola o inimigo no chão/plataforma
+            this.y = groundYTop - this.height;
             this.velocityY = 0;
             this.onGround = true;
         } else {
             this.onGround = false;
         }
 
-        // Movimento Horizontal (IA simples de cerco)
         if (this.onGround) {
             if (this.x < targetX - this.width / 2 - 50) {
                 this.x += this.horizontalSpeed;
@@ -169,14 +162,12 @@ class Enemy {
             }
         }
 
-        this.x = Math.max(0, Math.min(this.x, gameArea.offsetWidth - this.width));
-        // Garante que o inimigo não suba acima da área de jogo (0)
-        this.y = Math.max(0, Math.min(this.y, gameArea.offsetHeight - this.height)); 
+        this.x = Math.max(0, Math.min(this.x, gameArea.offsetWidth - this.width)); // *** Depende de gameArea ***
+        this.y = Math.max(0, Math.min(this.y, gameArea.offsetHeight - this.height)); // *** Depende de gameArea ***
 
         this.element.style.left = `${this.x}px`;
-        this.element.style.top = `${this.y}px`; // Posiciona o inimigo usando 'top'
+        this.element.style.top = `${this.y}px`;
 
-        // Snipers atiram apenas se estiverem no chão e visíveis
         if (this.type === 'sniper' && this.onGround && this.y < gameArea.offsetHeight * 0.7) {
             if (!this.shootInterval) {
                 this.shootInterval = setInterval(() => this.shoot(), 2500 / waveDifficultyMultiplier);
@@ -192,17 +183,16 @@ class Enemy {
             const projectile = document.createElement('div');
             projectile.classList.add('projectile');
             const startX = this.x + this.width / 2 - 5;
-            const startY = this.y + this.height / 2; // Coordenada Y do centro do inimigo (top-based)
+            const startY = this.y + this.height / 2;
 
-            // Calcula a direção para o player (playerY é bottom-based, então converte para top-based para cálculo)
-            const playerYTopBased = gameArea.offsetHeight - (playerY + playerHeight / 2);
+            const playerYTopBased = gameArea.offsetHeight - (playerY + playerHeight / 2); // *** Depende de gameArea ***
             const angle = Math.atan2(playerYTopBased - startY, (playerX + playerWidth / 2) - startX);
             const vx = Math.cos(angle) * this.projectileSpeed;
             const vy = Math.sin(angle) * this.projectileSpeed;
 
             projectile.style.left = `${startX}px`;
             projectile.style.top = `${startY}px`;
-            gameArea.appendChild(projectile);
+            gameArea.appendChild(projectile); // *** Depende de gameArea ***
             enemyProjectiles.push({
                 element: projectile,
                 x: startX,
@@ -238,8 +228,7 @@ function createPlayerProjectile() {
         projectile.classList.add('projectile');
         projectile.classList.add('player-projectile');
         const startX = playerX + playerWidth / 2 - 7.5;
-        // playerY é bottom-based, converte para top-based para posicionamento do projétil
-        const startY = gameArea.offsetHeight - (playerY + playerHeight / 2 - 7.5);
+        const startY = gameArea.offsetHeight - (playerY + playerHeight / 2 - 7.5); // *** Depende de gameArea ***
 
         projectile.style.left = `${startX}px`;
         projectile.style.top = `${startY}px`;
@@ -249,7 +238,7 @@ function createPlayerProjectile() {
         const velocityX = Math.cos(angle) * speed;
         const velocityY = Math.sin(angle) * speed;
 
-        gameArea.appendChild(projectile);
+        gameArea.appendChild(projectile); // *** Depende de gameArea ***
         playerProjectiles.push({ element: projectile, x: startX, y: startY, vx: velocityX, vy: velocityY });
     }
 }
@@ -262,7 +251,7 @@ function movePlayerProjectiles() {
         p.element.style.left = `${p.x}px`;
         p.element.style.top = `${p.y}px`;
 
-        if (p.x < 0 || p.x > gameArea.offsetWidth || p.y < 0 || p.y > gameArea.offsetHeight) {
+        if (p.x < 0 || p.x > gameArea.offsetWidth || p.y < 0 || p.y > gameArea.offsetHeight) { // *** Depende de gameArea ***
             p.element.remove();
             playerProjectiles.splice(i, 1);
         }
@@ -270,6 +259,15 @@ function movePlayerProjectiles() {
 }
 
 function moveEnemyProjectiles() {
+    // Tratamento defensivo adicional para garantir que enemyProjectiles é um array.
+    // O erro "is not defined" aqui frequentemente significa que alguma coisa anterior
+    // impediu a inicialização completa do script. A correção de gameArea deve resolver isso.
+    if (!Array.isArray(enemyProjectiles)) {
+        console.error("enemyProjectiles não é um array! Inicializando defensivamente.", enemyProjectiles);
+        enemyProjectiles = []; // Re-inicializa para evitar erro
+        return;
+    }
+
     for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
         const p = enemyProjectiles[i];
         p.x += p.vx;
@@ -277,7 +275,7 @@ function moveEnemyProjectiles() {
         p.element.style.left = `${p.x}px`;
         p.element.style.top = `${p.y}px`;
 
-        if (p.x < 0 || p.x > gameArea.offsetWidth || p.y < 0 || p.y > gameArea.offsetHeight) {
+        if (p.x < 0 || p.x > gameArea.offsetWidth || p.y < 0 || p.y > gameArea.offsetHeight) { // *** Depende de gameArea ***
             p.element.remove();
             enemyProjectiles.splice(i, 1);
         }
@@ -285,30 +283,26 @@ function moveEnemyProjectiles() {
 }
 
 // --- Player Movement ---
-let currentGroundY = 0; // A altura do chão atual do player (distância do bottom da gameArea)
+let currentGroundY = 0;
 
-// Encontra o chão mais alto sob o player (bottom-based)
 function getPlayerGroundY() {
-    let newGroundY = 0; // O ponto mais alto de "chão" (menor valor Y na tela, distância do bottom)
+    let newGroundY = 0;
 
     for (const platform of platforms) {
-        const playerBottom = playerY; // Bottom do player em relação ao bottom da gameArea
-        const platformTop = platform.y + platform.height; // Topo da plataforma em relação ao bottom da gameArea
+        const playerBottom = playerY;
+        const platformTop = platform.y + platform.height;
 
-        // Verifica sobreposição horizontal
         if (playerX + playerWidth > platform.x && playerX < platform.x + platform.width) {
-            // Se o player está caindo (velocityY negativo) e está acima ou vai pousar na plataforma
             if (velocityY <= 0 && playerBottom >= platformTop && (playerBottom + velocityY) <= platformTop) {
                 newGroundY = Math.max(newGroundY, platformTop);
             }
         }
     }
-    return newGroundY; // Retorna o offset do bottom
+    return newGroundY;
 }
 
-
 document.addEventListener('keydown', (e) => {
-    console.log('Key pressed:', e.code); // Log para verificar o input
+    console.log('Key pressed:', e.code);
     keysPressed[e.code] = true;
     if (e.code === 'Space' && canJump) {
         isJumping = true;
@@ -323,7 +317,6 @@ document.addEventListener('keyup', (e) => {
 });
 
 function movePlayer() {
-    // Movimento horizontal
     if (keysPressed['KeyA']) {
         playerX -= playerSpeed;
     }
@@ -331,11 +324,9 @@ function movePlayer() {
         playerX += playerSpeed;
     }
 
-    // Aplica gravidade ao player
     velocityY -= gravity;
-    playerY += velocityY; // PlayerY é bottom-based
+    playerY += velocityY;
 
-    // Calcula o chão atual para o player
     currentGroundY = getPlayerGroundY();
 
     if (playerY <= currentGroundY) {
@@ -345,21 +336,18 @@ function movePlayer() {
         canJump = true;
     }
 
-    // Limites da área de jogo
-    playerX = Math.max(0, Math.min(playerX, gameArea.offsetWidth - playerWidth));
-    playerY = Math.max(0, Math.min(playerY, gameArea.offsetHeight - playerHeight)); // Garante que não saia pelo topo
+    playerX = Math.max(0, Math.min(playerX, gameArea.offsetWidth - playerWidth)); // *** Depende de gameArea ***
+    playerY = Math.max(0, Math.min(playerY, gameArea.offsetHeight - playerHeight)); // *** Depende de gameArea ***
 
-    // Atualiza a posição CSS do player
     player.style.left = `${playerX}px`;
     player.style.bottom = `${playerY}px`;
-    // Logs detalhados para depuração do movimento do player
     console.log(`Player Pos: (X:${playerX.toFixed(1)}, Y:${playerY.toFixed(1)}), VelY:${velocityY.toFixed(1)}, GroundY:${currentGroundY}, CanJump:${canJump}`);
 }
 
 // --- Scenario Generation ---
 function generateScenario() {
     console.log('Generating scenario...');
-    gameArea.querySelectorAll('.ground-segment, .ground-texture, .castle-tower, .castle-wall, .castle-window, .moon, .cloud').forEach(el => el.remove());
+    gameArea.querySelectorAll('.ground-segment, .ground-texture, .castle-tower, .castle-wall, .castle-window, .moon, .cloud').forEach(el => el.remove()); // *** Depende de gameArea ***
 
     const moon = document.createElement('div');
     moon.classList.add('moon');
@@ -371,7 +359,7 @@ function generateScenario() {
         const cloud = document.createElement('div');
         cloud.classList.add('cloud');
         cloud.classList.add(Math.random() > 0.5 ? 'small' : 'medium');
-        cloud.style.left = `${Math.random() * (gameArea.offsetWidth - 100)}px`;
+        cloud.style.left = `${Math.random() * (gameArea.offsetWidth - 100)}px`; // *** Depende de gameArea ***
         cloud.style.top = `${Math.random() * 150 + 20}px`;
         gameArea.appendChild(cloud);
     }
@@ -379,7 +367,7 @@ function generateScenario() {
     // Chão principal (VISUAL APENAS, SEM COLISÃO NO ARRAY platforms, exceto o invisível na base)
     const mainGround = document.createElement('div');
     mainGround.classList.add('ground-segment');
-    mainGround.style.width = `${gameArea.offsetWidth}px`;
+    mainGround.style.width = `${gameArea.offsetWidth}px`; // *** Depende de gameArea ***
     mainGround.style.height = `50px`;
     mainGround.style.left = `0px`;
     mainGround.style.bottom = `0px`;
@@ -387,13 +375,12 @@ function generateScenario() {
 
     const mainGroundTexture = document.createElement('div');
     mainGroundTexture.classList.add('ground-texture');
-    mainGroundTexture.style.width = `${gameArea.offsetWidth}px`;
+    mainGroundTexture.style.width = `${gameArea.offsetWidth}px`; // *** Depende de gameArea ***
     mainGroundTexture.style.height = `30px`;
     mainGroundTexture.style.left = `0px`;
     mainGroundTexture.style.bottom = `0px`;
     gameArea.appendChild(mainGroundTexture);
 
-    // Plataforma esquerda baixa (VISUAL APENAS)
     const platform1 = document.createElement('div');
     platform1.classList.add('ground-segment');
     platform1.style.width = `220px`;
@@ -402,7 +389,6 @@ function generateScenario() {
     platform1.style.bottom = `110px`;
     gameArea.appendChild(platform1);
 
-    // Plataforma central (VISUAL E COLISOR)
     const platform2 = document.createElement('div');
     platform2.classList.add('ground-segment');
     platform2.style.width = `280px`;
@@ -411,7 +397,6 @@ function generateScenario() {
     platform2.style.bottom = `150px`;
     gameArea.appendChild(platform2);
 
-    // Plataforma direita baixa (VISUAL APENAS)
     const platform3 = document.createElement('div');
     platform3.classList.add('ground-segment');
     platform3.style.width = `250px`;
@@ -420,7 +405,6 @@ function generateScenario() {
     platform3.style.bottom = `100px`;
     gameArea.appendChild(platform3);
 
-    // Torre menor (plataforma central alta - VISUAL APENAS)
     const tower1 = document.createElement('div');
     tower1.classList.add('castle-tower');
     tower1.style.width = `80px`;
@@ -439,7 +423,6 @@ function generateScenario() {
     let window1_2 = document.createElement('div'); window1_2.classList.add('castle-window'); window1_2.style.left = '360px'; window1_2.style.bottom = '240px'; gameArea.appendChild(window1_2);
 
 
-    // Torre maior (direita - VISUAL APENAS)
     const tower2 = document.createElement('div');
     tower2.classList.add('castle-tower');
     tower2.style.width = `100px`;
@@ -458,7 +441,6 @@ function generateScenario() {
     let window2_2 = document.createElement('div'); window2_2.classList.add('castle-window'); window2_2.style.left = '670px'; window2_2.style.bottom = '230px'; gameArea.appendChild(window2_2);
 
 
-    // Plataforma esquerda alta (VISUAL APENAS)
     const platform4 = document.createElement('div');
     platform4.classList.add('ground-segment');
     platform4.style.width = `100px`;
@@ -472,8 +454,7 @@ function generateScenario() {
 
 // --- Enemy Spawning ---
 function spawnEnemy(type, baseSpeed) {
-    const x = Math.random() * (gameArea.offsetWidth - 30);
-    // Inimigos começam acima da tela e caem (Y inicial é top-based)
+    const x = Math.random() * (gameArea.offsetWidth - 30); // *** Depende de gameArea ***
     const enemy = new Enemy(x, -50, baseSpeed * waveDifficultyMultiplier, type);
     enemies.push(enemy);
     console.log(`Spawned enemy: ${type} at X:${x}, initial Y:-50`);
@@ -508,7 +489,7 @@ function startWave() {
     console.log(`Wave ${currentWave} setup complete. Enemies to spawn: ${enemiesToSpawn}`);
 }
 
-// --- Card Selection ---
+// --- Card Selection (sem alterações) ---
 const cards = [
     { name: 'Aura de Cura', description: 'Ganha +1 HP/seg.', effect: () => { playerMaxHp += 0; setInterval(() => { if (isGameRunning) playerHp = Math.min(playerMaxHp, playerHp + 1); updateHud(); }, 1000); } },
     { name: 'Regen de Mana Acelerado', description: '+0.15 Regen de Mana', effect: () => { playerMpRegenRate += 0.15; } },
@@ -554,7 +535,7 @@ function startNextWave() {
     setTimeout(startWave, 2000);
 }
 
-// --- Collision Detection ---
+// --- Collision Detection (sem alterações na lógica, apenas o funcionamento via gameArea) ---
 function checkCollisions() {
     if (!player || !player.parentElement) {
         console.warn("Player element not found or not in DOM during collision check.");
@@ -643,7 +624,7 @@ function rectIntersection(rect1, rect2) {
            rect1.bottom > rect2.top;
 }
 
-// --- Game Over ---
+// --- Game Over (sem alterações) ---
 function gameOver() {
     console.log('Game Over!');
     isGameRunning = false;
@@ -659,7 +640,7 @@ function gameOver() {
     showMenu();
 }
 
-// --- Update HUD ---
+// --- Update HUD (sem alterações) ---
 function updateHud() {
     hudHp.textContent = `${Math.floor(playerHp)}/${playerMaxHp}`;
     hudMp.textContent = `${Math.floor(playerMp)}/${playerMaxMp}`;
@@ -667,7 +648,7 @@ function updateHud() {
     hudLevel.textContent = playerLevel;
 }
 
-// --- Level Up ---
+// --- Level Up (sem alterações) ---
 function checkLevelUp() {
     const pointsForNextLevel = playerLevel * 100;
     if (score >= pointsForNextLevel) {
@@ -685,9 +666,9 @@ function checkLevelUp() {
 
 // --- Game Loop ---
 function gameLoop() {
-    console.log('--- Game Loop Iteration ---'); // Log para cada iteração do loop
+    console.log('--- Game Loop Iteration ---');
     console.log('isGameRunning:', isGameRunning);
-    console.log('enemyProjectiles (start of loop):', enemyProjectiles); // **Crucial para depurar o erro 'is not defined'**
+    console.log('enemyProjectiles (start of loop):', enemyProjectiles); 
 
     if (!isGameRunning) {
         console.log('Game loop stopped because isGameRunning is false.');
@@ -709,25 +690,24 @@ function gameLoop() {
 
     enemies = enemies.filter(enemy => {
         const isValid = enemy.element && enemy.element.parentElement;
-        if (!isValid && enemy.shootInterval) { // Limpa intervalos se o inimigo for removido
+        if (!isValid && enemy.shootInterval) {
             clearInterval(enemy.shootInterval);
         }
         return isValid;
     });
     playerProjectiles = playerProjectiles.filter(p => p.element && p.element.parentElement);
     
-    // **Linha com tratamento defensivo para o erro "is not defined"**
-    // Garante que enemyProjectiles é um array antes de chamar .filter()
+    // O tratamento defensivo ainda é válido, mas o erro original deve ter sido resolvido pela definição de gameArea
     enemyProjectiles = (Array.isArray(enemyProjectiles) ? enemyProjectiles : [])
                        .filter(p => p.element && p.element.parentElement);
-    console.log('enemyProjectiles (after filter):', enemyProjectiles); // Confirma o valor após o filtro
+    console.log('enemyProjectiles (after filter):', enemyProjectiles);
 
 
     gameLoopInterval = requestAnimationFrame(gameLoop);
-    console.log('--- End Game Loop Iteration ---'); // Log para o fim da iteração
+    console.log('--- End Game Loop Iteration ---');
 }
 
-// --- Event Listeners ---
+// --- Event Listeners (gameArea agora está definida) ---
 gameArea.addEventListener('mousemove', (e) => {
     mouseX = e.offsetX;
     mouseY = e.offsetY;
@@ -742,20 +722,21 @@ playButton.addEventListener('click', () => {
 // --- Start New Game ---
 function startNewGame() {
     console.log('startNewGame called');
-    if (!menu || !gameContainer || !gameArea || !player) {
-        console.error('Um ou mais elementos DOM essenciais não foram encontrados!', { menu, gameContainer, gameArea, player });
+    // Verificação de elementos DOM essenciais (gameArea agora é verificado corretamente)
+    if (!menu || !gameArea || !player) {
+        console.error('Um ou mais elementos DOM essenciais não foram encontrados!', { menu, gameArea, player });
         alert('Erro ao iniciar o jogo: Componentes essenciais não encontrados. Verifique o console para detalhes.');
         return;
     }
 
     menu.style.display = 'none';
     console.log('Menu hidden');
-    gameContainer.style.display = 'flex';
+    gameArea.style.display = 'flex'; // *** gameContainer mudou para gameArea ***
     console.log('Game container shown');
 
     isGameRunning = true;
     playerX = 100;
-    playerY = 50; // Posição inicial no "chão invisível" se não atingir a plataforma imediatamente
+    playerY = 50;
     playerHp = 100;
     playerMaxHp = 100;
     playerMp = 50;
@@ -769,6 +750,7 @@ function startNewGame() {
     waveDifficultyMultiplier = 1.1;
 
     try {
+        // Limpa elementos de jogo anteriores usando gameArea
         gameArea.querySelectorAll('.enemy, .projectile, .ground-segment, .ground-texture, .castle-tower, .castle-wall, .castle-window, .moon, .cloud').forEach(el => el.remove());
         console.log('Previous game elements cleared from gameArea.');
     } catch (e) {
@@ -776,18 +758,18 @@ function startNewGame() {
     }
     enemies = [];
     playerProjectiles = [];
-    enemyProjectiles = []; // Garante que é um array vazio ao iniciar um novo jogo
+    enemyProjectiles = [];
     console.log('Arrays de inimigos e projéteis resetados.');
 
     let existingPlayerElement = document.getElementById('player');
     if (!existingPlayerElement) {
         player = document.createElement('div');
         player.id = 'player';
-        gameArea.appendChild(player);
+        gameArea.appendChild(player); // Adiciona player ao gameArea
         console.log('Player element was missing, created and appended.');
     } else {
         if (!gameArea.contains(existingPlayerElement)) {
-            gameArea.appendChild(existingPlayerElement);
+            gameArea.appendChild(existingPlayerElement); // Re-adiciona player ao gameArea
             console.log('Existing player element re-appended to gameArea.');
         }
         player = existingPlayerElement;
@@ -817,11 +799,11 @@ function startNewGame() {
     console.log('Game loop initiated.');
 }
 
-// --- Show Menu ---
+// --- Show Menu (gameArea agora está definida) ---
 function showMenu() {
     console.log('Showing menu...');
     if (menu) menu.style.display = 'flex';
-    if (gameContainer) gameContainer.style.display = 'none';
+    if (gameArea) gameArea.style.display = 'none'; // *** gameContainer mudou para gameArea ***
     if (maxWaveDisplay) maxWaveDisplay.textContent = localStorage.getItem('maxWave') || 0;
 }
 
