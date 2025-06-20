@@ -1,36 +1,13 @@
-// Variáveis que precisarão ser acessíveis de outros arquivos
-// Serão inicializadas em main.js e acessadas via objeto global 'window'
+// Este arquivo agora acessará elementos DOM e variáveis globais SOMENTE via o objeto 'window'
+// A responsabilidade de declarar e expor esses elementos é de main.js.
+
 let loadedAssets = {};
-
-// Os elementos HUD e Telas agora serão acessados via 'window.'
-// Eles são declarados em main.js e expostos globalmente.
-
-// --- Verificação de Elementos (ajustado para acessar do window) ---
-// Este listener é para depuração inicial do DOM
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOMContentLoaded: Verificando elementos HTML em gameUtils.js (acessando via window)");
-    
-    // Assegure-se de que main.js já expôs esses elementos ao `window`
-    if (!window.mainMenuScreen) console.error("Erro CRÍTICO: window.mainMenuScreen não encontrado!");
-    if (!window.gameOverScreen) console.error("Erro CRÍTICO: window.gameOverScreen não encontrado!");
-    if (!window.abilityCardsScreen) console.error("Erro CRÍTICO: window.abilityCardsScreen não encontrado!");
-    if (!window.abilityCardOptionsDiv) console.error("Erro CRÍTICO: window.abilityCardOptionsDiv não encontrado!");
-    if (!window.mobileControlsBar) console.error("Erro CRÍTICO: window.mobileControlsBar não encontrado!");
-    if (!window.gameContent) console.error("Erro CRÍTICO: window.gameContent não encontrado!");
-    if (!window.hudHealthValue) console.error("Erro: window.hudHealthValue não encontrado!");
-    if (!window.hudManaValue) console.error("Erro: window.hudManaValue não encontrado!");
-    if (!window.hudLevelValue) console.error("Erro: window.hudLevelValue não encontrado!");
-    if (!window.hudXpValue) console.error("Erro: window.hudXpValue não encontrado!");
-    if (!window.hudSpellName) console.error("Erro: window.hudSpellName não encontrado!");
-    if (!window.hudWaveValue) console.error("Erro: window.hudWaveValue não encontrado!");
-});
-
 
 // --- Asset Loading ---
 function loadAssets() {
     return new Promise(resolve => {
         let loadedCount = 0;
-        const totalAssets = Object.keys(ASSET_PATHS).length;
+        const totalAssets = Object.keys(ASSET_PATHS).length; // ASSET_PATHS vem de constants.js
 
         if (totalAssets === 0) {
             console.log("Nenhum asset para carregar.");
@@ -62,10 +39,10 @@ function loadAssets() {
 }
 
 // --- Canvas Resizing ---
+// 'canvas' é passado como argumento; outras referências DOM via 'window'
 function resizeCanvas(canvas, player) {
     const mobileControlsBarElement = window.mobileControlsBar; // Acessa do window
     let currentControllerBarHeight = 0;
-    // Só calcula a altura se a barra de controle estiver sendo exibida
     if (mobileControlsBarElement && mobileControlsBarElement.style.display !== 'none') { 
         currentControllerBarHeight = mobileControlsBarElement.offsetHeight;
     }
@@ -265,7 +242,6 @@ function drawPoisonClouds(poisonClouds) {
 }
 
 function updateHUD(player, currentWave) {
-    // Acessa os elementos do HUD através da propriedade 'window.'
     if (window.hudHealthValue) window.hudHealthValue.textContent = `${player.health}/${player.maxHealth}${player.shield > 0 ? ` (+${player.shield})` : ''}`;
     if (window.hudManaValue) window.hudManaValue.textContent = `${player.mana.toFixed(0)}/${player.maxMana.toFixed(0)}`;
     if (window.hudLevelValue) window.hudLevelValue.textContent = player.level;
@@ -274,7 +250,6 @@ function updateHUD(player, currentWave) {
     if (window.hudWaveValue) window.hudWaveValue.textContent = currentWave;
 }
 
-// --- Colisão e Dano ---
 function takeDamage(player, amount, endGameCallback) {
     console.log(`Jogador recebeu ${amount} de dano. Vida antes: ${player.health}, Escudo: ${player.shield}`);
     if (player.shield > 0) {
@@ -309,7 +284,6 @@ function gainXP(player, amount, levelUpCallback) {
     }
 }
 
-// --- Gerenciamento de Habilidades ---
 function generateAbilityCards(player, startNextWaveCallback) {
     const abilityCardOptionsDiv = window.abilityCardOptionsDiv; // Acessa do window
     if (!abilityCardOptionsDiv) {
@@ -319,7 +293,7 @@ function generateAbilityCards(player, startNextWaveCallback) {
     abilityCardOptionsDiv.innerHTML = '';
     const chosenCards = [];
 
-    const availableAbilities = [...ABILITY_CARDS];
+    const availableAbilities = [...ABILITY_CARDS]; // ABILITY_CARDS vem de constants.js
 
     const cardsToGenerate = Math.min(3, availableAbilities.length); 
 
