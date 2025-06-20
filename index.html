@@ -1,38 +1,63 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!DOCTYPE html>More actions
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mago das Ondas Avançado</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arcane Survival</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="menu">
-        <h1>Mago das Ondas</h1>
-        <p>Wave Máxima: <span id="max-wave">0</span></p>
-        <button id="play-button">Jogar</button>
-    </div>
+    <div id="game-container">
+        <div id="main-menu-screen" class="game-screen game-screen-overlay active">
+            <h1>Arcane Survival</h1>
+            <button id="start-game-btn">Começar Jogo</button>
+        </div>
 
-    <div id="game-container" style="display: none;">
-        <div id="hud">
-            <div class="hud-item">Vida: <span id="hud-hp">100</span></div>
-            <div class="hud-item">MP: <span id="hud-mp">50</span></div>
-            <div class="hud-item">Pontos: <span id="hud-score">0</span></div>
-            <div class="hud-item">Level: <span id="hud-level">1</span></div>
+        <div id="game-over-screen" class="game-screen game-screen-overlay">
+            <h2>Game Over!</h2>
+            <p>Você foi derrotado pelos monstros.</p>
+            <button id="restart-game">Tentar Novamente</button>
         </div>
-        <div id="game-area">
-            <div id="player"></div>
+
+        <div id="ability-cards-screen" class="game-screen game-screen-overlay">
+            <h2>Escolha sua Habilidade</h2>
+            <div id="ability-card-options">
+                </div>
         </div>
-        <div id="card-selection" style="display: none;">
-            <h2>Escolha uma Carta</h2>
-            <div class="card-options">
-                <button class="card-button" data-card-index="0"></button>
-                <button class="card-button" data-card-index="1"></button>
-                <button class="card-button" data-card-index="2"></button>
+
+        <div id="game-content" class="game-screen">
+            <canvas id="gameCanvas"></canvas>
+            <div id="hud">
+                <div class="hud-item">Vida: <span id="health-value">100/100</span></div>
+                <div class="hud-item">Mana: <span id="mana-value">100/100</span></div>
+                <div class="hud-item">Nível: <span id="level-value">1</span></div>
+                <div class="hud-item">XP: <span id="xp-value">0/100</span></div>
+                <div class="hud-item">Magia Atual: <span id="spell-name">Fagulha</span></div>
+            </div>
+                <div class="hud-item">Onda: <span id="wave-value">1</span></div> </div>
+        </div>
+
+        <div id="mobile-controls-bar">
+            <button id="move-left-btn">←</button>
+            <button id="prev-spell-btn">⇦</button>
+            <button id="cast-spell-btn">Lançar</button>
+            <button id="next-spell-btn">⇨</button>
+            <button id="move-right-btn">→</button>
+            <div class="control-group left-controls">
+                <button id="cast-spell-btn">Lançar</button>
+            </div>
+            <div class="control-group right-controls">
+                <div class="spell-change-buttons">
+                    <button id="prev-spell-btn">⇦</button>
+                    <button id="next-spell-btn">⇨</button>
+                </div>
+                <div class="movement-buttons">
+                    <button id="move-left-btn">←</button>
+                    <button id="move-right-btn">→</button>
+                </div>
             </div>
         </div>
     </div>
-
     <script src="script.js"></script>
 </body>
 </html>
