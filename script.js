@@ -1087,5 +1087,4 @@ loadAssets().then(() => {
     animationFrameId = requestAnimationFrame(gameLoop); // Start the loop for state management
 }).catch(error => {
     console.error("Erro ao carregar assets:", error);
-    document.getElementById('game-container').innerHTML = '<p style="color: red;">Erro ao carregar os recursos do jogo. Por favor, tente novamente.</p>';
 });
