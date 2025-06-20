@@ -1,5 +1,6 @@
 // js/gameLogic.js
 import { Player } from './player.js';
+import { Scene } from './scene.js'; // Importa a classe Scene
 
 export function initializeGame(canvasId) {
     const canvas = document.getElementById(canvasId);
@@ -8,10 +9,15 @@ export function initializeGame(canvasId) {
     canvas.width = 800;
     canvas.height = 600;
 
-    // Instancia o jogador com vida e magia inicial
+    // Instancia o cenário
+    const scene = new Scene(canvas.width, canvas.height);
+
+    // Instancia o jogador
+    // Ajusta a posição Y inicial do jogador para que ele fique no chão
+    const playerInitialY = canvas.height - scene.groundHeight - (40 / 2); // (40 é a altura do player)
     const player = new Player(
         canvas.width / 2,
-        canvas.height - 100, // Posição Y um pouco acima para a levitação
+        playerInitialY,
         40, 40, 'blue', 7, // x, y, largura, altura, cor, velocidade
         100, 50 // Vida inicial, Magia inicial
     );
@@ -27,11 +33,13 @@ export function initializeGame(canvasId) {
 
     // Função principal de atualização do jogo (game loop)
     function gameLoop() {
-        // 1. Limpar o canvas a cada frame
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 1. Limpar o canvas a cada frame (Não é mais estritamente necessário se o fundo cobre tudo)
+        // ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 2. Atualizar a lógica do jogo
+        // 2. Desenhar o cenário PRIMEIRO
+        scene.draw(ctx);
 
+        // 3. Atualizar a lógica do jogo
         // Mover o jogador com base nas teclas pressionadas
         if (keys['ArrowLeft']) {
             player.move('left', canvas.width);
@@ -43,16 +51,18 @@ export function initializeGame(canvasId) {
         // Atualizar a animação de levitação do jogador
         player.updateLevitation();
 
-        // 3. Desenhar os elementos na tela
+        // 4. Desenhar os elementos na tela
         player.draw(ctx);
 
-        // Opcional: Desenhar a pontuação principal na tela
+        // Exibir pontuação e outras informações da UI
         ctx.fillStyle = 'white';
         ctx.font = '20px Arial';
         ctx.fillText(`Pontuação: ${player.score}`, 10, 30);
+        ctx.fillText(`Vida: ${player.life}/${player.maxLife}`, 10, 60);
+        ctx.fillText(`Magia: ${player.magic}/${player.maxMagic}`, 10, 90);
 
 
-        // 4. Chamar a próxima animação do frame
+        // 5. Chamar a próxima animação do frame
         requestAnimationFrame(gameLoop);
     }
 
@@ -60,10 +70,6 @@ export function initializeGame(canvasId) {
     gameLoop(); // Inicia o loop do jogo
 
     // Exemplo de uso das novas propriedades/métodos (para testar no console)
-    console.log(`Vida inicial do Player: ${player.life}`);
-    console.log(`Magia inicial do Player: ${player.magic}`);
-
-    // Para testar: simular dano e uso de magia após 3 segundos
     setTimeout(() => {
         player.takeDamage(20);
         player.useMagic(10);
