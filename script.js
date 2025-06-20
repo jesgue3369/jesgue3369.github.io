@@ -6,22 +6,15 @@ const hudManaValue = document.getElementById('mana-value');
 const hudLevelValue = document.getElementById('level-value');
 const hudXpValue = document.getElementById('xp-value');
 const hudSpellName = document.getElementById('spell-name');
-const hudSkillPointsValue = document.getElementById('skill-points-value');
-
-const skillTree = document.getElementById('skill-tree');
-const openSkillsBtn = document.getElementById('open-skills-btn');
-const closeSkillTreeBtn = document.getElementById('close-skill-tree');
-const unlockSkillButtons = document.querySelectorAll('.unlock-skill');
 
 const gameOverScreen = document.getElementById('game-over-screen');
 const restartGameBtn = document.getElementById('restart-game');
 
-// NOVOS ELEMENTOS DO MENU
 const mainMenuScreen = document.getElementById('main-menu-screen');
 const startGameBtn = document.getElementById('start-game-btn');
 const gameContent = document.getElementById('game-content'); // Onde o canvas e HUD estão
 
-// Botões de controle mobile
+const mobileControlsBar = document.getElementById('mobile-controls-bar');
 const moveLeftBtn = document.getElementById('move-left-btn');
 const moveRightBtn = document.getElementById('move-right-btn');
 const castSpellBtn = document.getElementById('cast-spell-btn');
@@ -33,6 +26,8 @@ let GAME_WIDTH;
 let GAME_HEIGHT;
 const PLAYER_SIZE = 50;
 const INITIAL_MONSTER_SIZE = 40;
+const ACTUAL_PLAYER_SIZE = PLAYER_SIZE * 0.4;
+const ACTUAL_MONSTER_BASE_SIZE = INITIAL_MONSTER_SIZE * 0.4;
 const SPELL_SIZE = 20;
 const PLAYER_SPEED = 5;
 const PROJECTILE_SPEED = 7;
@@ -42,9 +37,9 @@ const XP_PER_MONSTER = 10;
 const LEVEL_UP_XP_BASE = 100;
 const LEVEL_UP_XP_MULTIPLIER = 1.2;
 
-const CONTROLLER_BAR_HEIGHT = 100;
+// Altura da barra de controles móveis (será obtida dinamicamente)
+let CONTROLLER_BAR_HEIGHT = 100; // Valor padrão, será atualizado na resizeCanvas
 
-// --- Sprites (Imagens) ---
 const ASSET_PATHS = {
     player: './assets/player.png',
     projectile_player: './assets/projectile_player.png',
@@ -60,15 +55,14 @@ const ASSET_PATHS = {
     spell_fagulha: './assets/spell_fagulha.png',
     spell_bola_de_fogo: './assets/spell_bola_de_fogo.png',
     spell_estilhaco_de_gelo: './assets/spell_estilhaco_de_gelo.png',
-    background: './assets/background.png'
+    background: './assets/background.png' // Caminho do background
 };
 
 let loadedAssets = {};
 let assetsLoadedCount = 0;
 let totalAssetsToLoad = Object.keys(ASSET_PATHS).length;
 
-// --- Estado do Jogo ---
-let player; // Player será inicializado em resetGame()
+let player;
 let monsters = [];
 let spells = [];
 let monsterProjectiles = [];
@@ -79,16 +73,12 @@ let isMovingRight = false;
 let lastMonsterSpawnTime = 0;
 let difficultyLevel = 1;
 
-// --- Gerenciamento de Estados do Jogo ---
-// Estados possíveis: 'MENU', 'PLAYING', 'PAUSED_SKILL_TREE', 'GAME_OVER', 'WAVE_COMPLETE', 'CARD_SELECTION'
 let gameState = 'MENU';
 
-// --- Novas variáveis para animação do jogador ---
 let playerAnimationOffset = 0;
-const PLAYER_ANIMATION_AMPLITUDE = 5;
-const PLAYER_ANIMATION_SPEED = 5;
+const ENTITY_ANIMATION_AMPLITUDE = 5;
+const ENTITY_ANIMATION_SPEED = 5;
 
-// --- Definições de Magias e Habilidades ---
 const spellsData = {
     'Fagulha': { damage: 10, cost: 5, color: 'yellow', cooldown: 100, sprite: 'spell_fagulha' },
     'Bola de Fogo': { damage: 30, cost: 15, color: 'orange', cooldown: 500, sprite: 'spell_bola_de_fogo' },
@@ -108,169 +98,55 @@ for (const spellName in spellsData) {
     spellLastCastTime[spellName] = 0;
 }
 
-const skillsData = {
-    'fireball': { name: 'Bola de Fogo', type: 'active', cost: 1, unlock: () => player.activeSpells.push('Bola de Fogo') },
-    'ice-shard': { name: 'Estilhaço de Gelo', type: 'active', cost: 1, unlock: () => player.activeSpells.push('Estilhaço de Gelo') },
-    'arcane-blast': { name: 'Rajada Arcana', type: 'active', cost: 1, unlock: () => player.activeSpells.push('Rajada Arcana') },
-    'minor-heal': { name: 'Cura Menor', type: 'active', cost: 2, unlock: () => player.activeSpells.push('Cura Menor') },
-    'arcane-shield': { name: 'Escudo Arcano', type: 'active', cost: 2, unlock: () => player.activeSpells.push('Escudo Arcano') },
-    'lightning': { name: 'Relâmpago', type: 'active', cost: 3, unlock: () => player.activeSpells.push('Relâmpago') },
-    'poison-mist': { name: 'Névoa Venenosa', type: 'active', cost: 3, unlock: () => player.activeSpells.push('Névoa Venenosa') },
-    'frost-explosion': { name: 'Explosão Congelante', type: 'active', cost: 4, unlock: () => player.activeSpells.push('Explosão Congelante') },
-    'life-drain': { name: 'Drenar Vida', type: 'active', cost: 4, unlock: () => player.activeSpells.push('Drenar Vida') },
-    'meteor-storm': { name: 'Tempestade de Meteoros', type: 'active', cost: 5, unlock: () => player.activeSpells.push('Tempestade de Meteoros') },
-
-    'mana-regen': { name: 'Regeneração de Mana Aprimorada', type: 'passive', cost: 1, effect: () => player.manaRegenRate += 0.05 },
-    'spell-power': { name: 'Poder Mágico Aumentado', type: 'passive', cost: 1, effect: () => player.spellPower += 0.1 },
-    'health-boost': { name: 'Aumento de Vida', type: 'passive', cost: 2, effect: () => { player.maxHealth += 50; player.health += 50; } },
-    'cooldown-reduction': { name: 'Redução de Recarga', type: 'passive', cost: 3, effect: () => player.cooldownReduction += 0.1 },
-    'critical-chance': { name: 'Chance Crítica', type: 'passive', cost: 3, effect: () => player.criticalChance = Math.min(0.5, player.criticalChance + 0.05) },
-    'movement-speed': { name: 'Velocidade de Movimento', type: 'passive', cost: 2, effect: () => player.movementSpeedBonus += 1 }
-};
-
-// --- Definições de Monstros ---
-const monsterTypes = {
+const monsterTypes = { /* ... (mesmas definições de monstros) ... */
     'basic': {
-        color: '#f00',
-        initial: 'B',
-        sizeMultiplier: 1,
-        healthMultiplier: 1,
-        speedMultiplier: 1,
-        canShoot: false,
-        xp: 10,
-        contactDamage: 10,
-        sprite: 'monster_basic',
-        projectileSpeed: PROJECTILE_SPEED, // Adicionado
-        projectileSize: SPELL_SIZE / 2 // Adicionado
+        color: '#f00', initial: 'B', sizeMultiplier: 1, healthMultiplier: 1, speedMultiplier: 1, canShoot: false, xp: 10, contactDamage: 10, sprite: 'monster_basic', projectileSpeed: PROJECTILE_SPEED, projectileSize: SPELL_SIZE / 2, animationOffset: 0
     },
     'tank': {
-        color: '#8B4513',
-        initial: 'T',
-        sizeMultiplier: 1.5,
-        healthMultiplier: 3,
-        speedMultiplier: 0.7,
-        canShoot: false,
-        xp: 30,
-        contactDamage: 20,
-        sprite: 'monster_tank',
-        projectileSpeed: PROJECTILE_SPEED,
-        projectileSize: SPELL_SIZE / 2
+        color: '#8B4513', initial: 'T', sizeMultiplier: 1.5, healthMultiplier: 3, speedMultiplier: 0.7, canShoot: false, xp: 30, contactDamage: 20, sprite: 'monster_tank', projectileSpeed: PROJECTILE_SPEED, projectileSize: SPELL_SIZE / 2, animationOffset: 0
     },
     'shooter': {
-        color: '#6A5ACD',
-        initial: 'S',
-        sizeMultiplier: 1.1,
-        healthMultiplier: 1.2,
-        speedMultiplier: 0.9,
-        canShoot: true,
-        projectileColor: 'red',
-        projectileDamage: 15,
-        shootInterval: 2000,
-        lastShotTime: 0,
-        xp: 20,
-        contactDamage: 0,
-        sprite: 'monster_shooter',
-        projectileSpeed: PROJECTILE_SPEED,
-        projectileSize: SPELL_SIZE / 2
+        color: '#6A5ACD', initial: 'S', sizeMultiplier: 1.1, healthMultiplier: 1.2, speedMultiplier: 0.9, canShoot: true, projectileColor: 'red', projectileDamage: 15, shootInterval: 2000, lastShotTime: 0, xp: 20, contactDamage: 0, sprite: 'monster_shooter', projectileSpeed: PROJECTILE_SPEED, projectileSize: SPELL_SIZE / 2, animationOffset: 0
     },
     'fast': {
-        color: '#00FFFF',
-        initial: 'F',
-        sizeMultiplier: 0.8,
-        healthMultiplier: 0.7,
-        speedMultiplier: 1.5,
-        canShoot: false,
-        xp: 15,
-        contactDamage: 8,
-        sprite: 'monster_fast',
-        projectileSpeed: PROJECTILE_SPEED,
-        projectileSize: SPELL_SIZE / 2
+        color: '#00FFFF', initial: 'F', sizeMultiplier: 0.8, healthMultiplier: 0.7, speedMultiplier: 1.5, canShoot: false, xp: 15, contactDamage: 8, sprite: 'monster_fast', projectileSpeed: PROJECTILE_SPEED, projectileSize: SPELL_SIZE / 2, animationOffset: 0
     },
     'healer': {
-        color: '#00FF00',
-        initial: 'H',
-        sizeMultiplier: 1.0,
-        healthMultiplier: 1.5,
-        speedMultiplier: 0.8,
-        canShoot: false,
-        xp: 25,
-        contactDamage: 5,
-        healAmount: 5,
-        healRadius: 150,
-        healInterval: 1500,
-        lastHealTime: 0,
-        type: 'healer',
-        sprite: 'monster_healer',
-        projectileSpeed: PROJECTILE_SPEED,
-        projectileSize: SPELL_SIZE / 2
+        color: '#00FF00', initial: 'H', sizeMultiplier: 1.0, healthMultiplier: 1.5, speedMultiplier: 0.8, canShoot: false, xp: 25, contactDamage: 5, healAmount: 5, healRadius: 150, healInterval: 1500, lastHealTime: 0, type: 'healer', sprite: 'monster_healer', projectileSpeed: PROJECTILE_SPEED, projectileSize: SPELL_SIZE / 2, animationOffset: 0
     },
     'exploder': {
-        color: '#FF4500',
-        initial: 'E',
-        sizeMultiplier: 1.2,
-        healthMultiplier: 0.8,
-        speedMultiplier: 1.0,
-        canShoot: false,
-        xp: 20,
-        contactDamage: 30,
-        explosionRadius: 80,
-        type: 'exploder',
-        sprite: 'monster_exploder',
-        projectileSpeed: PROJECTILE_SPEED,
-        projectileSize: SPELL_SIZE / 2
+        color: '#FF4500', initial: 'E', sizeMultiplier: 1.2, healthMultiplier: 0.8, speedMultiplier: 1.0, canShoot: false, xp: 20, contactDamage: 30, explosionRadius: 80, type: 'exploder', sprite: 'monster_exploder', projectileSpeed: PROJECTILE_SPEED, projectileSize: SPELL_SIZE / 2, animationOffset: 0
     },
     'ghost': {
-        color: 'rgba(255,255,255,0.4)',
-        initial: 'G',
-        sizeMultiplier: 0.9,
-        healthMultiplier: 0.9,
-        speedMultiplier: 1.2,
-        canShoot: false,
-        xp: 20,
-        contactDamage: 12,
-        evadeChance: 0.2,
-        type: 'ghost',
-        sprite: 'monster_ghost',
-        projectileSpeed: PROJECTILE_SPEED,
-        projectileSize: SPELL_SIZE / 2
+        color: 'rgba(255,255,255,0.4)', initial: 'G', sizeMultiplier: 0.9, healthMultiplier: 0.9, speedMultiplier: 1.2, canShoot: false, xp: 20, contactDamage: 12, evadeChance: 0.2, type: 'ghost', sprite: 'monster_ghost', projectileSpeed: PROJECTILE_SPEED, projectileSize: SPELL_SIZE / 2, animationOffset: 0
     },
     'giant_worm': {
-        color: '#A52A2A',
-        initial: 'W',
-        sizeMultiplier: 2.0,
-        healthMultiplier: 5.0,
-        speedMultiplier: 0.5,
-        canShoot: true, // Giant Worm pode atirar
-        projectileColor: 'brown',
-        projectileDamage: 25,
-        shootInterval: 3000,
-        lastShotTime: 0,
-        xp: 50,
-        contactDamage: 40,
-        type: 'giant_worm',
-        sprite: 'monster_giant_worm',
-        projectileSpeed: PROJECTILE_SPEED * 0.5, // Projétil do gigante é mais lento
-        projectileSize: SPELL_SIZE * 1.5 // Projétil do gigante é maior
+        color: '#A52A2A', initial: 'W', sizeMultiplier: 2.0, healthMultiplier: 5.0, speedMultiplier: 0.5, canShoot: true, projectileColor: 'brown', projectileDamage: 25, shootInterval: 3000, lastShotTime: 0, xp: 50, contactDamage: 40, type: 'giant_worm', sprite: 'monster_giant_worm', projectileSpeed: PROJECTILE_SPEED * 0.5, projectileSize: SPELL_SIZE * 1.5, animationOffset: 0
     }
 };
 
-// --- Função de pré-carregamento de assets ---
 function loadAssets() {
     return new Promise(resolve => {
+        let loadedCount = 0;
+        const totalAssets = Object.keys(ASSET_PATHS).length;
+
         for (let key in ASSET_PATHS) {
             const img = new Image();
             img.src = ASSET_PATHS[key];
             img.onload = () => {
-                assetsLoadedCount++;
                 loadedAssets[key] = img;
-                if (assetsLoadedCount === totalAssetsToLoad) {
+                loadedCount++;
+                console.log(`Asset carregado: ${key} (${loadedCount}/${totalAssets})`);
+                if (loadedCount === totalAssets) {
+                    console.log("Todos os assets carregados!");
                     resolve();
                 }
             };
             img.onerror = () => {
                 console.error(`Falha ao carregar imagem: ${ASSET_PATHS[key]}`);
-                assetsLoadedCount++;
-                if (assetsLoadedCount === totalAssetsToLoad) {
+                loadedCount++;
+                if (loadedCount === totalAssets) {
+                    console.log("Todos os assets carregados (com erros ou não)!");
                     resolve();
                 }
             };
@@ -281,28 +157,39 @@ function loadAssets() {
 // --- Redimensionamento do Canvas ---
 function resizeCanvas() {
     const gameContainer = document.getElementById('game-container');
-    // Ajusta o canvas para preencher o game-content, que está dentro do game-container
-    canvas.width = gameContent.clientWidth;
-    canvas.height = gameContent.clientHeight;
+    
+    // Obter a altura real da barra de controles
+    CONTROLLER_BAR_HEIGHT = mobileControlsBar.offsetHeight;
+
+    // A altura do canvas deve ser a altura do game-content, que já é flex-grow: 1
+    // Isso significa que game-content já ocupa o espaço acima dos controles
+    canvas.width = gameContent.clientWidth; // Largura do canvas = largura do game-content
+    canvas.height = gameContent.clientHeight; // Altura do canvas = altura do game-content
 
     GAME_WIDTH = canvas.width;
     GAME_HEIGHT = canvas.height;
 
-    // Apenas ajuste a posição do jogador se o jogo estiver rodando
-    if (gameState === 'PLAYING' || gameState === 'PAUSED_SKILL_TREE') {
-        player.x = GAME_WIDTH / 2 - player.size / 2; // Usar player.size aqui
-        player.y = GAME_HEIGHT - player.size - 20; // Usar player.size aqui
+    // Não precisamos mais setar gameContent.style.height explicitamente
+    // Ele será dimensionado automaticamente pelo flex-grow
+
+    if (player) {
+        player.x = GAME_WIDTH / 2 - player.size / 2;
+        player.y = GAME_HEIGHT - player.size - 20;
     }
+    console.log(`Canvas resized to: ${GAME_WIDTH}x${GAME_HEIGHT}. Controls height: ${CONTROLLER_BAR_HEIGHT}`);
 }
 
 window.addEventListener('resize', resizeCanvas);
 
 // --- Funções de Exibição de Telas ---
 function showScreen(screenElement) {
-    const screens = document.querySelectorAll('.game-screen');
-    screens.forEach(screen => {
+    // Esconde todas as telas inicialmente
+    const allScreens = document.querySelectorAll('.game-screen');
+    allScreens.forEach(screen => {
         screen.classList.remove('active');
     });
+
+    // Ativa a tela desejada
     screenElement.classList.add('active');
 }
 
@@ -333,28 +220,29 @@ function drawPlayer() {
 
 function drawMonsters() {
     monsters.forEach(monster => {
+        const monsterYAdjusted = monster.y + monster.animationOffset;
         const monsterSprite = loadedAssets[monster.sprite];
         if (monsterSprite && monsterSprite.complete) {
-            ctx.drawImage(monsterSprite, monster.x, monster.y, monster.size, monster.size);
+            ctx.drawImage(monsterSprite, monster.x, monsterYAdjusted, monster.size, monster.size);
         } else {
             ctx.fillStyle = monster.color;
             ctx.beginPath();
-            ctx.arc(monster.x + monster.size / 2, monster.y + monster.size / 2, monster.size / 2, 0, Math.PI * 2);
+            ctx.arc(monster.x + monster.size / 2, monsterYAdjusted + monster.size / 2, monster.size / 2, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = 'white';
             ctx.font = `${monster.size * 0.6}px Arial`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(monster.initial, monster.x + monster.size / 2, monster.y + monster.size / 2);
+            ctx.fillText(monster.initial, monster.x + monster.size / 2, monsterYAdjusted + monster.size / 2);
         }
 
         const healthBarWidth = monster.size * 0.8;
         const healthBarHeight = 5;
         const healthRatio = monster.health / monster.maxHealth;
         ctx.fillStyle = 'red';
-        ctx.fillRect(monster.x + monster.size * 0.1, monster.y - 10, healthBarWidth, healthBarHeight);
+        ctx.fillRect(monster.x + monster.size * 0.1, monsterYAdjusted - 10, healthBarWidth, healthBarHeight);
         ctx.fillStyle = 'green';
-        ctx.fillRect(monster.x + monster.size * 0.1, monster.y - 10, healthBarWidth * healthRatio, healthBarHeight);
+        ctx.fillRect(monster.x + monster.size * 0.1, monsterYAdjusted - 10, healthBarWidth * healthRatio, healthBarHeight);
     });
 }
 
@@ -394,7 +282,7 @@ function drawSpells() {
 
 function drawMonsterProjectiles() {
     monsterProjectiles.forEach(projectile => {
-        const projectileSprite = loadedAssets.projectile_monster; // Usar sprite genérico por enquanto, mudar se houver sprites específicos
+        const projectileSprite = loadedAssets.projectile_monster;
         if (projectileSprite && projectileSprite.complete) {
             ctx.drawImage(projectileSprite, projectile.x - projectile.size / 2, projectile.y - projectile.size / 2, projectile.size, projectile.size);
         } else {
@@ -423,7 +311,6 @@ function updateHUD() {
     hudLevelValue.textContent = player.level;
     hudXpValue.textContent = `${player.xp}/${player.xpToNextLevel}`;
     hudSpellName.textContent = player.activeSpells[player.currentSpellIndex];
-    hudSkillPointsValue.textContent = player.skillPoints;
 }
 
 // --- Lógica do Jogo ---
@@ -433,14 +320,14 @@ function movePlayer() {
     if (keys['ArrowLeft'] && player.x > 0) {
         player.x -= currentSpeed;
     }
-    if (keys['ArrowRight'] && player.x < GAME_WIDTH - player.size) { // Usar player.size
+    if (keys['ArrowRight'] && player.x < GAME_WIDTH - player.size) {
         player.x += currentSpeed;
     }
 
     if (isMovingLeft && player.x > 0) {
         player.x -= currentSpeed;
     }
-    if (isMovingRight && player.x < GAME_WIDTH - player.size) { // Usar player.size
+    if (isMovingRight && player.x < GAME_WIDTH - player.size) {
         player.x += currentSpeed;
     }
 }
@@ -448,7 +335,7 @@ function movePlayer() {
 function spawnMonster() {
     const now = Date.now();
     if (now - lastMonsterSpawnTime > MONSTER_SPAWN_INTERVAL / difficultyLevel) {
-        const x = Math.random() * (GAME_WIDTH - INITIAL_MONSTER_SIZE); // Ainda usando INITIAL_MONSTER_SIZE para spawn inicial
+        const x = Math.random() * (GAME_WIDTH - ACTUAL_MONSTER_BASE_SIZE);
 
         let monsterTypeKeys = Object.keys(monsterTypes);
         let availableTypes = monsterTypeKeys.filter(type =>
@@ -477,8 +364,7 @@ function spawnMonster() {
         }
 
         const typeData = monsterTypes[monsterTypeKey];
-        // Aplicar redução de 60% para player e monstros (40% do tamanho original)
-        const monsterSize = INITIAL_MONSTER_SIZE * typeData.sizeMultiplier * 0.4;
+        const monsterSize = ACTUAL_MONSTER_BASE_SIZE * typeData.sizeMultiplier;
         const monsterHealth = 20 * difficultyLevel * typeData.healthMultiplier;
         const monsterSpeed = INITIAL_MONSTER_SPEED * (1 + (difficultyLevel - 1) * 0.1) * typeData.speedMultiplier;
 
@@ -491,7 +377,7 @@ function spawnMonster() {
             type: monsterTypeKey,
             color: typeData.color,
             initial: typeData.initial,
-            size: monsterSize, // Tamanho final após redução
+            size: monsterSize,
             canShoot: typeData.canShoot,
             projectileColor: typeData.projectileColor,
             projectileDamage: typeData.projectileDamage,
@@ -508,9 +394,11 @@ function spawnMonster() {
             isSlowed: false,
             slowTimer: 0,
             sprite: typeData.sprite,
-            projectileSpeed: typeData.projectileSpeed, // Usar velocidade do projétil do tipo de monstro
-            projectileSize: typeData.projectileSize, // Usar tamanho do projétil do tipo de monstro
-            targetY: GAME_HEIGHT * 0.3 + (Math.random() * GAME_HEIGHT * 0.2) // Voa até 30-50% da altura da tela
+            projectileSpeed: typeData.projectileSpeed,
+            projectileSize: typeData.projectileSize,
+            targetY: GAME_HEIGHT * 0.3 + (Math.random() * GAME_HEIGHT * 0.2),
+            animationOffset: 0,
+            animationStartTime: now
         });
         lastMonsterSpawnTime = now;
     }
@@ -524,22 +412,57 @@ function moveMonsters() {
             currentMonsterSpeed *= spellsData['Explosão Congelante'].slowFactor;
         }
 
-        // Nova lógica de movimento: voa para baixo até certo ponto, depois horizontal
+        monster.animationOffset = ENTITY_ANIMATION_AMPLITUDE * Math.sin((now - monster.animationStartTime) * ENTITY_ANIMATION_SPEED * 0.001);
+
+        let nextX = monster.x;
+        let nextY = monster.y;
+
         if (monster.y < monster.targetY) {
-            monster.y += currentMonsterSpeed;
+            nextY += currentMonsterSpeed;
         } else {
-            // Uma vez que atingiu a altura alvo, move-se horizontalmente em direção ao player
             const monsterCenterX = monster.x + monster.size / 2;
             const playerCenterX = player.x + player.size / 2;
 
             if (monsterCenterX < playerCenterX) {
-                monster.x += currentMonsterSpeed;
+                nextX += currentMonsterSpeed;
             } else if (monsterCenterX > playerCenterX) {
-                monster.x -= currentMonsterSpeed;
+                nextX -= currentMonsterSpeed;
             }
-            // Não move mais verticalmente após atingir targetY
         }
 
+        // --- Detecção de colisão entre monstros (para evitar sobreposição) ---
+        let collisionDetected = false;
+        const tempRect = { x: nextX, y: nextY, width: monster.size, height: monster.size };
+
+        for (let i = 0; i < monsters.length; i++) {
+            if (i === index) continue;
+
+            const other = monsters[i];
+            const otherRect = { x: other.x, y: other.y, width: other.size, height: other.size };
+
+            // AABB Collision detection
+            if (tempRect.x < otherRect.x + otherRect.width &&
+                tempRect.x + tempRect.width > otherRect.x &&
+                tempRect.y < otherRect.y + otherRect.height &&
+                tempRect.y + tempRect.height > otherRect.y)
+            {
+                collisionDetected = true;
+                // Ajuste simples: se houver colisão, o monstro não se move nessa direção por enquanto.
+                // Para uma física mais complexa, poderia calcular um vetor de repulsão.
+                // Por agora, apenas impede a sobreposição total.
+                break;
+            }
+        }
+
+        if (!collisionDetected) {
+            monster.x = nextX;
+            monster.y = nextY;
+        } else {
+            // Se colidiu, o monstro não se move na direção que causou a colisão,
+            // mas pode tentar se mover na outra direção (eixo y se colidiu no x, vice-versa)
+            // Para simplicidade, ele apenas para de se mover se colidir com outro monstro.
+            // Poderíamos adicionar uma lógica para empurrar levemente.
+        }
 
         if (monster.canShoot && now - monster.lastShotTime > monster.shootInterval && monster.y > 0 && monster.y < GAME_HEIGHT * 0.7) {
             const monsterCenterX = monster.x + monster.size / 2;
@@ -551,15 +474,15 @@ function moveMonsters() {
             const dy = playerCenterY - monsterCenterY;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            const vx = (dx / distance) * monster.projectileSpeed; // Usar monster.projectileSpeed
-            const vy = (dy / distance) * monster.projectileSpeed; // Usar monster.projectileSpeed
+            const vx = (dx / distance) * monster.projectileSpeed;
+            const vy = (dy / distance) * monster.projectileSpeed;
 
             monsterProjectiles.push({
                 x: monsterCenterX,
                 y: monsterCenterY,
                 color: monster.projectileColor,
                 damage: monster.projectileDamage,
-                size: monster.projectileSize, // Usar monster.projectileSize
+                size: monster.projectileSize,
                 vx: vx,
                 vy: vy
             });
@@ -579,17 +502,16 @@ function moveMonsters() {
             monster.lastHealTime = now;
         }
 
-        // Se o monstro atingir a parte inferior da tela, ele some (ou causa dano e some)
         if (monster.y > GAME_HEIGHT) {
             if (monster.type === 'exploder') {
                 monsters.splice(index, 1);
                 return;
             }
 
-            if (monster.type !== 'shooter') { // Atacantes de contato ainda causam dano ao passar
+            if (monster.type !== 'shooter') {
                 takeDamage(monster.contactDamage);
             }
-            monsters.splice(index, 1); // Remove o monstro
+            monsters.splice(index, 1);
             if (player.health <= 0) {
                 endGame();
             }
@@ -619,7 +541,7 @@ function castSpell() {
         player.mana -= spellData.cost;
         spellLastCastTime[currentSpellName] = now;
 
-        const spellX = player.x + player.size / 2; // Usar player.size
+        const spellX = player.x + player.size / 2;
         const spellY = player.y;
 
         let finalDamage = spellData.damage * player.spellPower;
@@ -646,14 +568,7 @@ function castSpell() {
                 break;
             case 'aoe_dot':
                 poisonClouds.push({
-                    x: spellX,
-                    y: spellY,
-                    damagePerTick: finalDamage,
-                    tickInterval: spellData.tickInterval,
-                    duration: spellData.duration,
-                    radius: spellData.radius,
-                    color: spellData.color,
-                    lastTickTime: now
+                    x: spellX, y: spellY, damagePerTick: finalDamage, tickInterval: spellData.tickInterval, duration: spellData.duration, radius: spellData.radius, color: spellData.color, lastTickTime: now
                 });
                 break;
             case 'aoe_slow':
@@ -676,14 +591,9 @@ function castSpell() {
                     spells.push({ x: spellX + offsetX, y: spellY, damage: finalDamage, color: spellData.color, sprite: spellData.sprite });
                 }
                 break;
-            default: // Magias de projétil padrão
+            default:
                 spells.push({
-                    x: spellX,
-                    y: spellY,
-                    damage: finalDamage,
-                    color: spellData.color,
-                    type: spellData.type,
-                    sprite: spellData.sprite || 'projectile_player'
+                    x: spellX, y: spellY, damage: finalDamage, color: spellData.color, type: spellData.type, sprite: spellData.sprite || 'projectile_player'
                 });
                 break;
         }
@@ -757,15 +667,15 @@ function checkCollisions() {
     monsterProjectiles.forEach((projectile, projIndex) => {
         const projCenterX = projectile.x + projectile.size / 2;
         const projCenterY = projectile.y + projectile.size / 2;
-        const playerCenterX = player.x + player.size / 2; // Usar player.size
-        const playerCenterY = player.y + player.size / 2; // Usar player.size
+        const playerCenterX = player.x + player.size / 2;
+        const playerCenterY = player.y + player.size / 2;
 
         const dist = Math.sqrt(
             Math.pow(projCenterX - playerCenterX, 2) +
             Math.pow(projCenterY - playerCenterY, 2)
         );
 
-        if (dist < (projectile.size / 2 + player.size / 2)) { // Usar player.size
+        if (dist < (projectile.size / 2 + player.size / 2)) {
             takeDamage(projectile.damage);
             monsterProjectiles.splice(projIndex, 1);
 
@@ -780,7 +690,6 @@ function checkCollisions() {
             return;
         }
 
-        // Colisão de contato com o jogador
         if (monster.y + monster.size > player.y &&
             monster.y < player.y + player.size &&
             monster.x + monster.size > player.x &&
@@ -853,15 +762,12 @@ function levelUp() {
     player.level++;
     player.xp -= player.xpToNextLevel;
     player.xpToNextLevel = Math.floor(player.xpToNextLevel * LEVEL_UP_XP_MULTIPLIER);
-    player.skillPoints++;
     player.maxHealth += 20;
     player.health = player.maxHealth;
     player.maxMana += 10;
     player.mana = player.maxMana;
 
     difficultyLevel += 0.2;
-
-    updateUnlockSkillButtons();
 }
 
 function endGame() {
@@ -871,10 +777,9 @@ function endGame() {
 
 function resetGame() {
     player = {
-        // Redução de 60% no tamanho do player (0.4 do original)
-        size: PLAYER_SIZE * 0.4,
-        x: GAME_WIDTH / 2 - (PLAYER_SIZE * 0.4) / 2, // Posicionar centralizado com o novo tamanho
-        y: GAME_HEIGHT - (PLAYER_SIZE * 0.4) - 20, // Posicionar acima da base com o novo tamanho
+        size: ACTUAL_PLAYER_SIZE,
+        x: GAME_WIDTH / 2 - ACTUAL_PLAYER_SIZE / 2,
+        y: GAME_HEIGHT - ACTUAL_PLAYER_SIZE - 20,
         health: 100,
         maxHealth: 100,
         mana: 100,
@@ -882,9 +787,7 @@ function resetGame() {
         level: 1,
         xp: 0,
         xpToNextLevel: LEVEL_UP_XP_BASE,
-        skillPoints: 0,
         activeSpells: ['Fagulha'],
-        passiveSkills: [],
         currentSpellIndex: 0,
         spellPower: 1,
         manaRegenRate: 0.1,
@@ -907,9 +810,8 @@ function resetGame() {
     lastMonsterSpawnTime = 0;
     difficultyLevel = 1;
 
-    updateUnlockSkillButtons();
     updateHUD();
-    resizeCanvas(); // Garante que o player é posicionado corretamente no novo tamanho
+    resizeCanvas();
 }
 
 function startGame() {
@@ -919,93 +821,9 @@ function startGame() {
     requestAnimationFrame(gameLoop);
 }
 
-// --- Funções da Árvore de Habilidades ---
-function toggleSkillTree() {
-    if (gameState === 'PLAYING') {
-        gameState = 'PAUSED_SKILL_TREE';
-        skillTree.classList.remove('hidden');
-    } else if (gameState === 'PAUSED_SKILL_TREE') {
-        skillTree.classList.add('hidden');
-        gameState = 'PLAYING';
-        requestAnimationFrame(gameLoop); // Retoma o loop do jogo
-    }
-    updateUnlockSkillButtons(); // Atualiza botões sempre que abrir/fechar
-}
-
-function unlockSkill(skillId) {
-    const skill = skillsData[skillId];
-    if (!skill) return;
-
-    if (player.skillPoints >= skill.cost) {
-        let alreadyUnlocked = false;
-
-        if (skill.type === 'active') {
-            if (player.activeSpells.includes(skill.name)) {
-                alreadyUnlocked = true;
-                alert('Você já tem essa magia!');
-            } else {
-                skill.unlock();
-                player.currentSpellIndex = player.activeSpells.length - 1;
-            }
-        } else if (skill.type === 'passive') {
-            if (player.passiveSkills.includes(skillId)) {
-                alreadyUnlocked = true;
-                alert('Você já tem essa habilidade passiva!');
-            } else {
-                player.passiveSkills.push(skillId);
-                skill.effect();
-            }
-        }
-
-        if (!alreadyUnlocked) {
-            player.skillPoints -= skill.cost;
-            updateHUD();
-            updateUnlockSkillButtons();
-        }
-
-    } else {
-        alert('Pontos de Habilidade insuficientes!');
-    }
-}
-
-function updateUnlockSkillButtons() {
-    unlockSkillButtons.forEach(button => {
-        const skillId = button.dataset.skillId;
-        const skill = skillsData[skillId];
-
-        if (!skill) {
-            button.disabled = true;
-            button.textContent = 'Indisponível';
-            return;
-        }
-
-        let alreadyUnlocked = false;
-        if (skill.type === 'active') {
-            alreadyUnlocked = player.activeSpells.includes(skill.name);
-        } else if (skill.type === 'passive') {
-            alreadyUnlocked = player.passiveSkills.includes(skillId);
-        }
-
-        if (alreadyUnlocked) {
-            button.disabled = true;
-            button.textContent = 'Desbloqueado';
-            button.classList.add('unlocked');
-        } else if (player.skillPoints < skill.cost) {
-            button.disabled = true;
-            button.textContent = `Desbloquear (${skill.cost} SP)`;
-            button.classList.remove('unlocked');
-        } else {
-            button.disabled = false;
-            button.textContent = `Desbloquear (${skill.cost} SP)`;
-            button.classList.remove('unlocked');
-        }
-    });
-}
-
-// --- Event Listeners para Desktop (Teclado) ---
 document.addEventListener('keydown', (e) => {
     keys[e.key] = true;
-    if (gameState === 'PLAYING') { // Apenas permite input se o jogo estiver PLAYING
+    if (gameState === 'PLAYING') {
         if (e.key === ' ') {
             e.preventDefault();
             castSpell();
@@ -1023,7 +841,6 @@ document.addEventListener('keyup', (e) => {
     keys[e.key] = false;
 });
 
-// --- Event Listeners para Mobile (Toque) ---
 moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAYING') isMovingLeft = true; });
 moveLeftBtn.addEventListener('touchend', (e) => { e.preventDefault(); isMovingLeft = false; });
 moveLeftBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); isMovingLeft = false; });
@@ -1055,42 +872,16 @@ nextSpellBtn.addEventListener('click', (e) => {
     }
 });
 
-// Event Listeners para os botões do Menu e Game Over
 startGameBtn.addEventListener('click', startGame);
-restartGameBtn.addEventListener('click', startGame); // Ao invés de restartGame, chama startGame para resetar e iniciar
+restartGameBtn.addEventListener('click', startGame);
 
-// Verificação se os elementos existem antes de adicionar event listeners
-if (openSkillsBtn) {
-    openSkillsBtn.addEventListener('click', toggleSkillTree);
-} else {
-    console.error("Erro: Botão 'Habilidades' com ID 'open-skills-btn' não encontrado no HTML!");
-}
-
-if (closeSkillTreeBtn) {
-    closeSkillTreeBtn.addEventListener('click', toggleSkillTree);
-} else {
-    console.error("Erro: Botão 'Fechar Árvore de Habilidades' com ID 'close-skill-tree' não encontrado no HTML!");
-}
-
-
-unlockSkillButtons.forEach(button => {
-    button.addEventListener('click', () => {
-        const skillId = button.dataset.skillId;
-        unlockSkill(skillId);
-    });
-});
-
-
-// --- Loop Principal do Jogo ---
 let lastFrameTime = 0;
 function gameLoop(currentTime) {
-    // Apenas executa a lógica do jogo se o estado for 'PLAYING'
     if (gameState === 'PLAYING') {
         const deltaTime = currentTime - lastFrameTime;
         lastFrameTime = currentTime;
 
-        // Atualiza o offset da animação do jogador
-        playerAnimationOffset = PLAYER_ANIMATION_AMPLITUDE * Math.sin(Date.now() * PLAYER_ANIMATION_SPEED * 0.001);
+        playerAnimationOffset = ENTITY_ANIMATION_AMPLITUDE * Math.sin(currentTime * ENTITY_ANIMATION_SPEED * 0.001);
 
         ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
@@ -1098,8 +889,8 @@ function gameLoop(currentTime) {
         if (loadedAssets.background && loadedAssets.background.complete) {
             ctx.drawImage(loadedAssets.background, 0, 0, GAME_WIDTH, GAME_HEIGHT);
         } else {
-            // Opcional: Desenhe uma cor de fundo enquanto a imagem carrega
-            ctx.fillStyle = '#333'; // Exemplo de cor de fundo cinza escuro
+            console.warn("Background não carregado ou não completo, usando cor de fallback. Verifique assets/background.png");
+            ctx.fillStyle = '#333';
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         }
 
@@ -1118,27 +909,16 @@ function gameLoop(currentTime) {
         drawPoisonClouds();
         updateHUD();
     }
-    // Se o estado não for 'PLAYING', o loop ainda chama a si mesmo, mas não executa a lógica
-    // Isso é importante para que o requestAnimationFrame continue rodando e o estado possa mudar
+    
     requestAnimationFrame(gameLoop);
 }
 
-// --- Iniciar o Jogo ---
 loadAssets().then(() => {
     console.log("Todos os assets carregados! Exibindo menu inicial...");
-    // Inicializa o player com o tamanho reduzido ANTES de resizeCanvas
-    player = {
-        size: PLAYER_SIZE * 0.4, // Tamanho inicial reduzido
-        x: 0, y: 0, // Posição será ajustada por resizeCanvas() e resetGame()
-        health: 100, maxHealth: 100, mana: 100, maxMana: 100,
-        level: 1, xp: 0, xpToNextLevel: LEVEL_UP_XP_BASE, skillPoints: 0,
-        activeSpells: ['Fagulha'], passiveSkills: [], currentSpellIndex: 0,
-        spellPower: 1, manaRegenRate: 0.1, shield: 0, cooldownReduction: 0,
-        criticalChance: 0, movementSpeedBonus: 0
-    };
+    player = { /* ... player initialisation ... */ };
     resizeCanvas(); // Ajusta o canvas e posiciona o player
     showScreen(mainMenuScreen); // Inicia mostrando o menu principal
-    requestAnimationFrame(gameLoop); // Inicia o loop do jogo
+    requestAnimationFrame(gameLoop);
 }).catch(error => {
     console.error("Erro ao carregar assets:", error);
 });
