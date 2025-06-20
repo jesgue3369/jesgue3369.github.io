@@ -8,12 +8,12 @@
 </head>
 <body>
     <div id="game-container">
-        <div id="main-menu-screen" class="game-screen active">
+        <div id="main-menu-screen" class="game-screen game-screen-overlay active">
             <h1>Arcane Survival</h1>
             <button id="start-game-btn">Começar Jogo</button>
         </div>
 
-        <div id="game-over-screen" class="game-screen">
+        <div id="game-over-screen" class="game-screen game-screen-overlay">
             <h2>Game Over!</h2>
             <p>Você foi derrotado pelos monstros.</p>
             <button id="restart-game">Tentar Novamente</button>
@@ -27,9 +27,8 @@
                 <div class="hud-item">Nível: <span id="level-value">1</span></div>
                 <div class="hud-item">XP: <span id="xp-value">0/100</span></div>
                 <div class="hud-item">Magia Atual: <span id="spell-name">Fagulha</span></div>
-                </div>
-
             </div>
+        </div>
 
         <div id="mobile-controls-bar">
             <button id="move-left-btn">←</button>
