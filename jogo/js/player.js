@@ -1,10 +1,10 @@
-// js/player.js
+// js/player.js (apenas o construtor e a linha baseY ajustada)
 
 export class Player {
     constructor(x, y, width, height, color, speed, initialLife, initialMagic) {
         this.x = x;
         this.y = y;
-        this.baseY = y; // Posição Y original para a levitação
+        this.baseY = y; // Define a posição Y base para a levitação
         this.width = width;
         this.height = height;
         this.color = color;
@@ -12,16 +12,18 @@ export class Player {
 
         // Novas propriedades
         this.life = initialLife;
-        this.maxLife = initialLife; // Para controle, caso haja cura
+        this.maxLife = initialLife;
         this.magic = initialMagic;
-        this.maxMagic = initialMagic; // Para controle, caso haja recuperação de magia
+        this.maxMagic = initialMagic;
         this.score = 0;
 
         // Propriedades para a animação de levitação
-        this.levitationAmplitude = 5; // Altura máxima do movimento
-        this.levitationSpeed = 0.05; // Velocidade da animação (quanto maior, mais rápido)
-        this.levitationOffset = 0; // Para controlar a fase da animação
+        this.levitationAmplitude = 5;
+        this.levitationSpeed = 0.05;
+        this.levitationOffset = 0;
     }
+    // ... restante da classe Player permanece igual
+}
 
     // Método para mover o jogador horizontalmente
     move(direction, canvasWidth) {
