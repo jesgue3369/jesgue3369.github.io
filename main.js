@@ -1,5 +1,9 @@
+// --- Elementos HTML ---
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d'); // Contexto do canvas
+
+// Importante: Definir gameContent aqui para ser usado na transição de telas
+const gameContent = document.getElementById('game-content'); 
 
 const startGameBtn = document.getElementById('start-game-btn');
 const restartGameBtn = document.getElementById('restart-game');
@@ -10,8 +14,15 @@ const castSpellBtn = document.getElementById('cast-spell-btn');
 const prevSpellBtn = document.getElementById('prev-spell-btn');
 const nextSpellBtn = document.getElementById('next-spell-btn');
 
+// --- Variáveis Globais (Expostas para outros módulos se necessário, mas melhor passar como args) ---
+// Para simplificar a refatoração sem modules, vamos "hackear" algumas para o window
+window.ctx = ctx; // Torna o contexto 2D acessível globalmente
+window.GAME_WIDTH = canvas.width; // Inicializado, mas será redimensionado
+window.GAME_HEIGHT = canvas.height; // Inicializado, mas será redimensionado
+
 // --- Global Game State ---
-let gameStates = {
+// Tornar gameStates global no window para que outras funções como handleMonsterDefeat possam acessá-lo
+window.gameStates = {
     gameState: 'MENU', // Possible states: 'MENU', 'PLAYING', 'WAVE_COMPLETE', 'CHOOSING_ABILITY', 'GAME_OVER'
     currentWave: 0,
     monstersInWave: 0,
@@ -22,120 +33,133 @@ let gameStates = {
     keys: {}
 };
 
-// Global player state (defined in player.js)
-// playerState.player, playerState.spellLastCastTime
+// playerState é definido em player.js e é global
+// monsters, spells, monsterProjectiles, poisonClouds são definidos em seus respectivos arquivos e são globais
 
 let animationFrameId; // To store the requestAnimationFrame ID
 let lastFrameTime = 0; // For delta time calculation
 
 // --- Game Initialization and Reset ---
 function resetGame() {
-    initializePlayer(GAME_WIDTH, GAME_HEIGHT); // From player.js
+    console.log("Reiniciando jogo...");
+    initializePlayer(window.GAME_WIDTH, window.GAME_HEIGHT); // From player.js
     
     // Reset global arrays
-    monsters = [];
-    spells = [];
-    monsterProjectiles = [];
-    poisonClouds = [];
+    monsters.length = 0; // Esvazia o array
+    spells.length = 0;
+    monsterProjectiles.length = 0;
+    poisonClouds.length = 0;
 
     // Reset game state
-    gameStates.currentWave = 0;
-    gameStates.monstersInWave = 0;
-    gameStates.monstersKilledInWave = 0;
-    gameStates.spawnedMonstersCount = 0;
-    gameStates.keys = {};
-    gameStates.isMovingLeft = false;
-    gameStates.isMovingRight = false;
-    
-    // Reset monster spawn timer in monsters.js
-    lastMonsterSpawnTime = 0;
+    window.gameStates.currentWave = 0;
+    window.gameStates.monstersInWave = 0;
+    window.gameStates.monstersKilledInWave = 0;
+    window.gameStates.spawnedMonstersCount = 0;
+    window.gameStates.keys = {};
+    window.gameStates.isMovingLeft = false;
+    window.gameStates.isMovingRight = false;
+    window.gameStates.gameState = 'MENU'; // Volta para o menu por padrão após reset
 
-    updateHUD(playerState.player, gameStates.currentWave); // From gameUtils.js
+    // Reset monster spawn timer in monsters.js
+    window.lastMonsterSpawnTime = 0; // Acessando a variável globalmente
+
+    updateHUD(playerState.player, window.gameStates.currentWave); // From gameUtils.js
     resizeCanvas(canvas, playerState.player); // From gameUtils.js
+    console.log("Jogo reiniciado. Estado:", window.gameStates.gameState);
 }
 
 function startGame() {
-    resetGame();
-    startNextWave();
+    console.log("Botão 'Começar Jogo' clicado!");
+    resetGame(); // Garante que tudo está limpo e no estado inicial
+    startNextWave(); // Inicia a primeira onda
 }
 
 function endGame() {
-    gameStates.gameState = 'GAME_OVER';
+    console.log("Fim de Jogo!");
+    window.gameStates.gameState = 'GAME_OVER';
     showScreen(gameOverScreen); // From gameUtils.js
+    // Parar o loop de animação para economizar recursos, ou deixá-lo para desenhar a tela de Game Over
+    // cancelAnimationFrame(animationFrameId); // Pode ser útil se você não quiser mais renderizar o jogo de fundo
 }
 
 function startNextWave() {
-    gameStates.currentWave++;
-    gameStates.monstersKilledInWave = 0;
-    gameStates.spawnedMonstersCount = 0;
+    console.log(`Iniciando a próxima onda. Onda atual: ${window.gameStates.currentWave}`);
+    window.gameStates.currentWave++;
+    window.gameStates.monstersKilledInWave = 0;
+    window.gameStates.spawnedMonstersCount = 0;
 
-    gameStates.monstersInWave = 5 + (gameStates.currentWave * 2);
+    window.gameStates.monstersInWave = 5 + (window.gameStates.currentWave * 2);
 
-    gameStates.gameState = 'PLAYING';
-    showScreen(gameContent); // From gameUtils.js
-    console.log(`Starting Wave ${gameStates.currentWave} with ${gameStates.monstersInWave} monsters.`);
+    window.gameStates.gameState = 'PLAYING';
+    showScreen(gameContent); // Mostra a tela de jogo (canvas e HUD)
+    console.log(`Iniciando Onda ${window.gameStates.currentWave} com ${window.gameStates.monstersInWave} monstros.`);
     
+    // Garante que o gameLoop está rodando. Se já estiver, não inicia um novo.
     if (!animationFrameId) {
-        gameLoop();
+        animationFrameId = requestAnimationFrame(gameLoop);
     }
 }
 
 function pauseGameForAbilityChoice() {
-    gameStates.gameState = 'CHOOSING_ABILITY';
+    console.log("Pausando jogo para escolha de habilidade.");
+    window.gameStates.gameState = 'CHOOSING_ABILITY';
     showScreen(abilityCardsScreen); // From gameUtils.js
     generateAbilityCards(playerState.player, startNextWave); // From gameUtils.js, pass player and startNextWave callback
 }
 
 // --- Event Listeners ---
 document.addEventListener('keydown', (e) => {
-    gameStates.keys[e.key] = true;
-    if (gameStates.gameState === 'PLAYING') {
+    window.gameStates.keys[e.key] = true;
+    if (window.gameStates.gameState === 'PLAYING') {
         if (e.key === ' ') {
             e.preventDefault();
+            // Passa as funções como callbacks
             castSpell(playerState.player, playerState.spellLastCastTime, monsters, applyDamageToMonster);
         } else if (e.key === 'q' || e.key === 'Q') {
             playerState.player.currentSpellIndex = (playerState.player.currentSpellIndex - 1 + playerState.player.activeSpells.length) % playerState.player.activeSpells.length;
-            updateHUD(playerState.player, gameStates.currentWave);
+            updateHUD(playerState.player, window.gameStates.currentWave);
         } else if (e.key === 'e' || e.key === 'E') {
             playerState.player.currentSpellIndex = (playerState.player.currentSpellIndex + 1) % playerState.player.activeSpells.length;
-            updateHUD(playerState.player, gameStates.currentWave);
+            updateHUD(playerState.player, window.gameStates.currentWave);
         }
     }
 });
 
 document.addEventListener('keyup', (e) => {
-    gameStates.keys[e.key] = false;
+    window.gameStates.keys[e.key] = false;
 });
 
 // Mobile button listeners
-moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameStates.gameState === 'PLAYING') gameStates.isMovingLeft = true; });
-moveLeftBtn.addEventListener('touchend', (e) => { e.preventDefault(); gameStates.isMovingLeft = false; });
-moveLeftBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); gameStates.isMovingLeft = false; });
+// Adicionar e.preventDefault() em touchstart para evitar problemas em dispositivos móveis
+moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (window.gameStates.gameState === 'PLAYING') window.gameStates.isMovingLeft = true; });
+moveLeftBtn.addEventListener('touchend', (e) => { e.preventDefault(); window.gameStates.isMovingLeft = false; });
+moveLeftBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); window.gameStates.isMovingLeft = false; });
 
-moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameStates.gameState === 'PLAYING') gameStates.isMovingRight = true; });
-moveRightBtn.addEventListener('touchend', (e) => { e.preventDefault(); gameStates.isMovingRight = false; });
-moveRightBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); gameStates.isMovingRight = false; });
+moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (window.gameStates.gameState === 'PLAYING') window.gameStates.isMovingRight = true; });
+moveRightBtn.addEventListener('touchend', (e) => { e.preventDefault(); window.gameStates.isMovingRight = false; });
+moveRightBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); window.gameStates.isMovingRight = false; });
 
 castSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    if (gameStates.gameState === 'PLAYING') {
+    if (window.gameStates.gameState === 'PLAYING') {
+        // Passa as funções como callbacks
         castSpell(playerState.player, playerState.spellLastCastTime, monsters, applyDamageToMonster);
     }
 });
 
 prevSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    if (gameStates.gameState === 'PLAYING') {
+    if (window.gameStates.gameState === 'PLAYING') {
         playerState.player.currentSpellIndex = (playerState.player.currentSpellIndex - 1 + playerState.player.activeSpells.length) % playerState.player.activeSpells.length;
-        updateHUD(playerState.player, gameStates.currentWave);
+        updateHUD(playerState.player, window.gameStates.currentWave);
     }
 });
 
 nextSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    if (gameStates.gameState === 'PLAYING') {
+    if (window.gameStates.gameState === 'PLAYING') {
         playerState.player.currentSpellIndex = (playerState.player.currentSpellIndex + 1) % playerState.player.activeSpells.length;
-        updateHUD(playerState.player, gameStates.currentWave);
+        updateHUD(playerState.player, window.gameStates.currentWave);
     }
 });
 
@@ -147,40 +171,43 @@ window.addEventListener('resize', () => resizeCanvas(canvas, playerState.player)
 // --- Main Game Loop ---
 function gameLoop(currentTime) {
     if (!lastFrameTime) lastFrameTime = currentTime;
-    // const deltaTime = currentTime - lastFrameTime; // For frame-rate independent physics if needed
+    // const deltaTime = currentTime - lastFrameTime; // Para física independente do framerate se necessário
     lastFrameTime = currentTime;
 
-    if (gameStates.gameState === 'PLAYING') {
+    // Limpa o canvas no início de cada frame, independentemente do estado
+    window.ctx.clearRect(0, 0, window.GAME_WIDTH, window.GAME_HEIGHT);
+
+    // Desenha o background para todos os estados visíveis no canvas
+    if (loadedAssets.background && loadedAssets.background.complete) {
+        window.ctx.drawImage(loadedAssets.background, 0, 0, window.GAME_WIDTH, window.GAME_HEIGHT);
+    } else {
+        window.ctx.fillStyle = '#333';
+        window.ctx.fillRect(0, 0, window.GAME_WIDTH, window.GAME_HEIGHT);
+    }
+
+    if (window.gameStates.gameState === 'PLAYING') {
         playerState.animationOffset = ENTITY_ANIMATION_AMPLITUDE * Math.sin(currentTime * ENTITY_ANIMATION_SPEED * 0.001);
 
-        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-        if (loadedAssets.background && loadedAssets.background.complete) {
-            ctx.drawImage(loadedAssets.background, 0, 0, GAME_WIDTH, GAME_HEIGHT);
-        } else {
-            ctx.fillStyle = '#333';
-            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        }
-
-        movePlayer(gameStates.keys, gameStates.isMovingLeft, gameStates.isMovingRight); // From player.js
+        movePlayer(window.gameStates.keys, window.gameStates.isMovingLeft, window.gameStates.isMovingRight); // From player.js
         
         // Spawn monster and update spawned count
-        if (gameStates.spawnedMonstersCount < gameStates.monstersInWave) {
-             const monsterSpawned = spawnMonster(gameStates.currentWave, gameStates.monstersInWave, gameStates.spawnedMonstersCount, GAME_WIDTH, GAME_HEIGHT); // From monsters.js
+        if (window.gameStates.spawnedMonstersCount < window.gameStates.monstersInWave) {
+             const monsterSpawned = spawnMonster(window.gameStates.currentWave, window.gameStates.monstersInWave, window.gameStates.spawnedMonstersCount, window.GAME_WIDTH, window.GAME_HEIGHT); // From monsters.js
              if (monsterSpawned) {
-                gameStates.spawnedMonstersCount++;
+                window.gameStates.spawnedMonstersCount++;
              }
         }
        
+        // Passa endGame como callback para takeDamage
         moveMonsters(playerState.player, endGame); // From monsters.js
         moveSpells(); // From spells.js
         moveMonsterProjectiles(); // From monsters.js
 
         // Check all collisions
+        // Passa as funções como callbacks
         checkSpellCollisions(playerState.player, monsters, endGame, handleMonsterDefeat, applyDamageToMonster); // From spells.js
-        // Monster Projectiles vs Player is handled in gameUtils's takeDamage, or here?
-        // Let's add explicit check here for monster projectiles
-        // Monster Projectiles vs Player (moved from gameUtils to main logic for clarity)
+        
+        // Monster Projectiles vs Player
         for (let i = monsterProjectiles.length - 1; i >= 0; i--) {
             let projectile = monsterProjectiles[i];
             const projCenterX = projectile.x + projectile.size / 2;
@@ -194,16 +221,16 @@ function gameLoop(currentTime) {
             );
 
             if (dist < (projectile.size / 2 + playerState.player.size / 2)) {
-                takeDamage(playerState.player, projectile.damage, endGame); // From gameUtils.js
+                takeDamage(playerState.player, projectile.damage, endGame); // Passa endGame
                 monsterProjectiles.splice(i, 1);
             }
         }
 
-        // Monsters (contact) vs Player (moved from gameUtils to main logic for clarity)
+        // Monsters (contact) vs Player
         for (let i = monsters.length - 1; i >= 0; i--) {
             let monster = monsters[i];
             if (monster.type === 'shooter') {
-                continue;
+                continue; // Shooters don't do contact damage
             }
 
             if (monster.y + monster.size > playerState.player.y &&
@@ -216,15 +243,9 @@ function gameLoop(currentTime) {
                     handleMonsterDefeat(monster, i, playerState.player, gainXP); // Exploder self-destructs
                 } else {
                     takeDamage(playerState.player, monster.contactDamage, endGame);
-                    // Standard monsters don't despawn on contact, they continue to move past player
-                    // unless they are defeated by damage. If they are defeated by contact, they should be removed.
-                    // For now, let's assume contact is just damage, monster stays until health 0
-                    // OR if you want them to be removed like in previous code:
-                    // monsters.splice(i, 1);
                 }
             }
         }
-
 
         regenerateMana(); // From player.js
 
@@ -233,41 +254,56 @@ function gameLoop(currentTime) {
         drawSpells(spells); // From gameUtils.js
         drawMonsterProjectiles(monsterProjectiles); // From gameUtils.js
         drawPoisonClouds(poisonClouds); // From gameUtils.js
-        updateHUD(playerState.player, gameStates.currentWave); // From gameUtils.js
+        updateHUD(playerState.player, window.gameStates.currentWave); // From gameUtils.js
 
-        if (gameStates.monstersKilledInWave >= gameStates.monstersInWave && monsters.length === 0 && monsterProjectiles.length === 0) {
-            console.log(`Wave ${gameStates.currentWave} complete!`);
-            gameStates.gameState = 'WAVE_COMPLETE';
+        // Check for wave completion
+        if (window.gameStates.monstersKilledInWave >= window.gameStates.monstersInWave && monsters.length === 0 && monsterProjectiles.length === 0) {
+            console.log(`Onda ${window.gameStates.currentWave} completa!`);
+            window.gameStates.gameState = 'WAVE_COMPLETE';
             pauseGameForAbilityChoice();
         }
 
-    } else if (gameStates.gameState === 'WAVE_COMPLETE' || gameStates.gameState === 'CHOOSING_ABILITY' || gameStates.gameState === 'MENU' || gameStates.gameState === 'GAME_OVER') {
-        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        if (loadedAssets.background && loadedAssets.background.complete) {
-            ctx.drawImage(loadedAssets.background, 0, 0, GAME_WIDTH, GAME_HEIGHT);
-        } else {
-            ctx.fillStyle = '#333';
-            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    } else if (window.gameStates.gameState === 'MENU' || window.gameStates.gameState === 'GAME_OVER' || window.gameStates.gameState === 'CHOOSING_ABILITY') {
+        // Redraw player and monsters in background if any, even in menu/game over screens for visual effect
+        // Only draw if player is initialized and game state allows
+        if (playerState.player) {
+            drawPlayer(playerState.player, playerState.animationOffset);
         }
-        drawPlayer(playerState.player, playerState.animationOffset);
-        drawMonsters(monsters);
+        if (monsters) {
+            drawMonsters(monsters);
+        }
+        // No need to draw spells or projectiles in these states usually, or they should be cleared.
     }
 
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// Initial setup
+// --- Initial setup ---
 loadAssets().then(() => {
     console.log("Todos os assets carregados! Exibindo menu inicial...");
-    // Initialize player and resize canvas after assets are loaded and HTML elements are ready
-    // We need to set ctx and GAME_WIDTH/GAME_HEIGHT globally for gameUtils
-    window.ctx = ctx; // Make ctx accessible globally
-    window.GAME_WIDTH = canvas.width; // Initial value, will be updated by resizeCanvas
-    window.GAME_HEIGHT = canvas.height; // Initial value, will be updated by resizeCanvas
+    
+    // Inicializa o player e redimensiona o canvas APÓS os assets serem carregados
+    // e os elementos HTML estarem prontos.
+    resetGame(); // Garante que as variáveis de jogo estão limpas e o player inicializado
+    resizeCanvas(canvas, playerState.player); // Redimensiona o canvas para o tamanho correto
 
-    resetGame(); // Perform initial setup including player initialization and canvas resize
-    showScreen(mainMenuScreen); // Show the main menu
-    animationFrameId = requestAnimationFrame(gameLoop); // Start the loop
+    showScreen(mainMenuScreen); // Mostra o menu principal (garantindo que ele está ativo no início)
+    console.log("Estado inicial do jogo após loadAssets:", window.gameStates.gameState);
+
+    // Inicia o loop do jogo. Ele vai renderizar o menu enquanto o gameState for 'MENU'.
+    animationFrameId = requestAnimationFrame(gameLoop); 
 }).catch(error => {
     console.error("Erro ao carregar assets:", error);
+});
+
+// Ações adicionais no DOMContentLoaded para garantir que os elementos estejam disponíveis
+document.addEventListener('DOMContentLoaded', () => {
+    // Estas ações já são feitas no loadAssets().then(), mas é bom ter uma redundância aqui
+    // para garantir que os listeners sejam atribuídos mesmo que o carregamento de assets seja super rápido.
+    // Ou se você quiser que o resizeCanvas inicial aconteça antes mesmo dos assets estarem 100%
+    if (!playerState.player) { // Se o player ainda não foi inicializado
+        // Não chame resetGame aqui, pois loadAssets().then() já o fará
+        // Apenas para garantir o resize inicial se necessário
+        // resizeCanvas(canvas, playerState.player);
+    }
 });
