@@ -590,8 +590,8 @@ function checkCollisions() {
                 }
             });
         } else if (spell.type === 'multishot') {
-            // Multishot projectiles
-            for (let j = monsters.length - 1; j >= 0; j--) {
+             // Multishot projectiles
+             for (let j = monsters.length - 1; j >= 0; j--) {
                 let monster = monsters[j];
                 if (spell.x < monster.x + monster.size &&
                     spell.x + SPELL_SIZE > monster.x &&
@@ -616,7 +616,7 @@ function checkCollisions() {
                 }
             }
         }
-        else { // Regular projectile spells
+        else { // Regular projectile spells (Fagulha, Bola de Fogo, Estilhaço de Gelo, Rajada Arcana, Drenar Vida)
             for (let j = monsters.length - 1; j >= 0; j--) {
                 let monster = monsters[j];
                 if (spell.x < monster.x + monster.size &&
@@ -1114,6 +1114,6 @@ document.addEventListener('DOMContentLoaded', () => {
         animationFrameId = requestAnimationFrame(gameLoop); // Start the loop for state management
     }).catch(error => {
         console.error("Erro ao carregar assets:", error);
-        document.getElementById('game-container').innerHTML = '<p style="color: red;">Erro ao carregar os recursos do jogo. Por favor, tente novamente.</p>';
+        // A linha que modificava o innerHTML do game-container foi removida daqui.
     });
 });
