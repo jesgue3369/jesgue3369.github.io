@@ -11,7 +11,7 @@ body {
 }
 
 #game-container {
-    position: relative;
+    position: relative; /* Para que .game-screen-overlay posicione absolutamente em relação a ele */
     width: 100vw;
     height: 100vh;
     max-width: 800px; /* Limite a largura do jogo para desktop */
@@ -19,26 +19,19 @@ body {
     overflow: hidden;
     background-color: #000; /* Fundo padrão enquanto não carrega imagem */
     border: 2px solid #555;
-    display: flex; /* Para flexbox interno */
-    flex-direction: column; /* Organiza canvas e controles verticalmente */
+    display: flex;
+    flex-direction: column; /* Organiza game-content e mobile-controls-bar verticalmente */
 }
 
-/* Esconde todas as telas de jogo por padrão */
+/* Base styles for all screens (both overlay and main game content) */
 .game-screen {
-    position: absolute; /* Permite sobreposição */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.9); /* Fundo semi-transparente para telas de menu/game over */
-    display: flex; /* Para centralizar conteúdo */
-    flex-direction: column;
+    display: none; /* Esconde todas as telas por padrão */
     justify-content: center;
     align-items: center;
     text-align: center;
-    z-index: 10; /* Garante que fiquem acima do canvas */
-    box-sizing: border-box; /* Inclui padding e border na largura/altura */
+    box-sizing: border-box;
     padding: 20px;
+    flex-direction: column; /* Para conteúdo interno */
     transition: opacity 0.3s ease-in-out; /* Transição suave */
     opacity: 0;
     pointer-events: none; /* Não permite interação quando invisível */
@@ -46,21 +39,46 @@ body {
 
 /* Mostra a tela ativa */
 .game-screen.active {
+    display: flex; /* Mostra a tela */
     opacity: 1;
-    pointer-events: auto; /* Permite interação quando visível */
+    pointer-events: auto; /* Permite interação */
 }
 
+/* Estilos para telas de sobreposição (menu, game over) */
+.game-screen-overlay {
+    position: absolute; /* Aparecem por cima do container */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9); /* Fundo semi-transparente */
+    z-index: 20; /* Garante que fiquem acima do canvas e HUD */
+}
+
+/* Estilos para a tela principal do jogo (onde o canvas está) */
 #game-content {
+    flex-grow: 1; /* Preenche o espaço disponível no #game-container (acima da barra de controles) */
+    position: relative; /* Para posicionar o HUD absolutamente dentro dele */
     background-color: transparent; /* O canvas terá o fundo da imagem */
-    flex-grow: 1; /* Preenche o espaço disponível acima dos controles */
-    display: block; /* Garante que o canvas possa ser renderizado */
-    position: relative; /* Permite posicionamento do HUD */
+    width: 100%; /* Preenche a largura do #game-container */
+    /* A altura será definida por flex-grow */
+    display: flex; /* Ou 'block', dependendo de como você quer que o canvas se comporte internamente */
+    flex-direction: column; /* Para alinhar itens dentro do game-content se houver mais que o canvas */
+    overflow: hidden; /* Evita que o conteúdo do canvas escape */
+    z-index: 10; /* Abaixo das telas de sobreposição */
+    pointer-events: none; /* Inicia com pointer-events none, ativado apenas quando "active" */
+}
+
+#game-content.active {
+    pointer-events: auto; /* Permite interação quando o jogo está ativo */
 }
 
 
 #gameCanvas {
     display: block; /* Remove espaço extra abaixo do canvas */
     background-color: #000; /* Fallback para canvas, se a imagem não carregar */
+    width: 100%; /* Canvas preenche a largura do #game-content */
+    height: 100%; /* Canvas preenche a altura do #game-content */
 }
 
 #hud {
@@ -82,121 +100,6 @@ body {
     border: 1px solid #777;
     border-radius: 3px;
     white-space: nowrap; /* Evita quebras de linha */
-}
-
-#open-skills-btn {
-    background-color: #007bff;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.8em;
-}
-
-#open-skills-btn:hover {
-    background-color: #0056b3;
-}
-
-
-/* Skill Tree */
-#skill-tree {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.9);
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: center;
-    padding: 20px;
-    box-sizing: border-box;
-    z-index: 20; /* Acima de todas as outras telas quando ativa */
-    overflow-y: auto; /* Permite rolagem se o conteúdo for grande */
-}
-
-#skill-tree.hidden {
-    display: none;
-}
-
-#skill-tree h2 {
-    margin-bottom: 20px;
-    color: #ffd700;
-}
-
-.skill-category {
-    width: 90%;
-    max-width: 600px;
-    margin-bottom: 20px;
-    border: 1px solid #555;
-    border-radius: 8px;
-    padding: 15px;
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-.skill-category h3 {
-    margin-top: 0;
-    color: #aaddff;
-}
-
-.skills-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px;
-}
-
-.skill-item {
-    background-color: #333;
-    padding: 10px;
-    border-radius: 5px;
-    font-size: 0.9em;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
-    border: 1px solid #666;
-}
-
-.skill-item button {
-    margin-top: 5px;
-    background-color: #28a745;
-    color: white;
-    border: none;
-    padding: 5px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8em;
-    width: 100%;
-}
-
-.skill-item button:hover:not(:disabled) {
-    background-color: #218838;
-}
-
-.skill-item button:disabled {
-    background-color: #6c757d;
-    cursor: not-allowed;
-}
-
-.skill-item button.unlocked {
-    background-color: #007bff; /* Cor para desbloqueado */
-}
-
-#close-skill-tree {
-    background-color: #dc3545;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    margin-top: 20px;
-    font-size: 1em;
-}
-
-#close-skill-tree:hover {
-    background-color: #c82333;
 }
 
 /* Game Over Screen */
@@ -240,7 +143,7 @@ body {
     background-color: rgba(0, 0, 0, 0.7);
     padding: 10px 0;
     box-sizing: border-box;
-    z-index: 10; /* Acima do canvas */
+    z-index: 10; /* No mesmo nível do game-content, mas abaixo das overlays */
 }
 
 #mobile-controls-bar button {
@@ -311,16 +214,6 @@ body {
         font-size: 0.8em;
         padding: 5px;
         gap: 5px;
-    }
-
-    #open-skills-btn {
-        padding: 4px 8px;
-        font-size: 0.7em;
-    }
-
-    .skill-item button {
-        font-size: 0.7em;
-        padding: 4px 6px;
     }
 
     #mobile-controls-bar button {
