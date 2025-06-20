@@ -1,6 +1,18 @@
 // --- Elementos HTML ---
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d'); // Contexto do canvas
+// Adiciona log para verificar se o canvas foi encontrado
+if (!canvas) {
+    console.error("ERRO CRÍTICO: Elemento #gameCanvas não encontrado no DOM. O jogo não pode iniciar.");
+    // Se o canvas não for encontrado, parar a execução ou lidar com o erro
+    // Por exemplo, você pode exibir uma mensagem de erro na tela
+}
+
+const ctx = canvas ? canvas.getContext('2d') : null; // Contexto do canvas
+// Adiciona log para verificar se o contexto 2D foi obtido
+if (!ctx) {
+    console.error("ERRO CRÍTICO: Não foi possível obter o contexto 2D do Canvas. Seu navegador suporta Canvas?");
+    // Se o contexto não for obtido, parar a execução
+}
 
 // Importante: Definir gameContent aqui para ser usado na transição de telas
 const gameContent = document.getElementById('game-content'); 
@@ -19,11 +31,13 @@ const mainMenuScreen = document.getElementById('main-menu-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
 const abilityCardsScreen = document.getElementById('ability-cards-screen');
 
+
 // --- Variáveis Globais (Expostas para outros módulos se necessário) ---
 // Para simplificar a refatoração sem modules, vamos "hackear" algumas para o window
 window.ctx = ctx; // Torna o contexto 2D acessível globalmente
-window.GAME_WIDTH = canvas.width; // Inicializado, mas será redimensionado
-window.GAME_HEIGHT = canvas.height; // Inicializado, mas será redimensionado
+window.GAME_WIDTH = canvas ? canvas.width : 800; // Inicializado com fallback
+window.GAME_HEIGHT = canvas ? canvas.height : 600; // Inicializado com fallback
+window.CONTROLLER_BAR_HEIGHT = 0; // Será atualizado em resizeCanvas
 
 // --- Global Game State ---
 // Tornar gameStates global no window para que outras funções como handleMonsterDefeat possam acessá-lo
@@ -47,6 +61,7 @@ let lastFrameTime = 0; // For delta time calculation
 // --- Game Initialization and Reset ---
 function resetGame() {
     console.log("Reiniciando jogo... Limpando estados e entidades.");
+    // initializePlayer precisa de GAME_WIDTH e GAME_HEIGHT atualizados
     initializePlayer(window.GAME_WIDTH, window.GAME_HEIGHT); // From player.js
     
     // Reset global arrays
@@ -68,6 +83,7 @@ function resetGame() {
     window.lastMonsterSpawnTime = 0; // Reset monster spawn timer in monsters.js
 
     updateHUD(playerState.player, window.gameStates.currentWave); // From gameUtils.js
+    // Chame resizeCanvas novamente para garantir que as dimensões estejam corretas após reset
     resizeCanvas(canvas, playerState.player); // From gameUtils.js
     console.log("Jogo reiniciado. Estado atual:", window.gameStates.gameState);
 }
@@ -140,15 +156,15 @@ document.addEventListener('keyup', (e) => {
 
 // Mobile button listeners
 // Adicionar e.preventDefault() em touchstart para evitar problemas em dispositivos móveis
-moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (window.gameStates.gameState === 'PLAYING') window.gameStates.isMovingLeft = true; });
-moveLeftBtn.addEventListener('touchend', (e) => { e.preventDefault(); window.gameStates.isMovingLeft = false; });
-moveLeftBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); window.gameStates.isMovingLeft = false; });
+if (moveLeftBtn) moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (window.gameStates.gameState === 'PLAYING') window.gameStates.isMovingLeft = true; });
+if (moveLeftBtn) moveLeftBtn.addEventListener('touchend', (e) => { e.preventDefault(); window.gameStates.isMovingLeft = false; });
+if (moveLeftBtn) moveLeftBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); window.gameStates.isMovingLeft = false; });
 
-moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (window.gameStates.gameState === 'PLAYING') window.gameStates.isMovingRight = true; });
-moveRightBtn.addEventListener('touchend', (e) => { e.preventDefault(); window.gameStates.isMovingRight = false; });
-moveRightBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); window.gameStates.isMovingRight = false; });
+if (moveRightBtn) moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (window.gameStates.gameState === 'PLAYING') window.gameStates.isMovingRight = true; });
+if (moveRightBtn) moveRightBtn.addEventListener('touchend', (e) => { e.preventDefault(); window.gameStates.isMovingRight = false; });
+if (moveRightBtn) moveRightBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); window.gameStates.isMovingRight = false; });
 
-castSpellBtn.addEventListener('click', (e) => {
+if (castSpellBtn) castSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
     if (window.gameStates.gameState === 'PLAYING') {
         // Passa as funções como callbacks
@@ -156,7 +172,7 @@ castSpellBtn.addEventListener('click', (e) => {
     }
 });
 
-prevSpellBtn.addEventListener('click', (e) => {
+if (prevSpellBtn) prevSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
     if (window.gameStates.gameState === 'PLAYING') {
         playerState.player.currentSpellIndex = (playerState.player.currentSpellIndex - 1 + playerState.player.activeSpells.length) % playerState.player.activeSpells.length;
@@ -164,7 +180,7 @@ prevSpellBtn.addEventListener('click', (e) => {
     }
 });
 
-nextSpellBtn.addEventListener('click', (e) => {
+if (nextSpellBtn) nextSpellBtn.addEventListener('click', (e) => {
     e.preventDefault();
     if (window.gameStates.gameState === 'PLAYING') {
         playerState.player.currentSpellIndex = (playerState.player.currentSpellIndex + 1) % playerState.player.activeSpells.length;
@@ -172,8 +188,8 @@ nextSpellBtn.addEventListener('click', (e) => {
     }
 });
 
-startGameBtn.addEventListener('click', startGame);
-restartGameBtn.addEventListener('click', startGame);
+if (startGameBtn) startGameBtn.addEventListener('click', startGame);
+if (restartGameBtn) restartGameBtn.addEventListener('click', startGame);
 
 window.addEventListener('resize', () => resizeCanvas(canvas, playerState.player));
 
@@ -183,15 +199,25 @@ function gameLoop(currentTime) {
     // const deltaTime = currentTime - lastFrameTime; // Para física independente do framerate se necessário
     lastFrameTime = currentTime;
 
+    // Verificação de ctx antes de desenhar
+    if (!window.ctx) {
+        console.error("ERRO: window.ctx não está disponível no gameLoop. Parando loop de animação.");
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+        return;
+    }
+    
     // Limpa o canvas no início de cada frame, independentemente do estado
     window.ctx.clearRect(0, 0, window.GAME_WIDTH, window.GAME_HEIGHT);
 
     // Desenha o background para todos os estados visíveis no canvas
     if (loadedAssets.background && loadedAssets.background.complete) {
         window.ctx.drawImage(loadedAssets.background, 0, 0, window.GAME_WIDTH, window.GAME_HEIGHT);
+        // console.log("Background de imagem desenhado."); // Removido para evitar spam no console
     } else {
         window.ctx.fillStyle = '#333';
         window.ctx.fillRect(0, 0, window.GAME_WIDTH, window.GAME_HEIGHT);
+        // console.log("Background de cor sólida (#333) desenhado."); // Removido para evitar spam no console
     }
 
     // Apenas processa a lógica do jogo se o estado for 'PLAYING'
@@ -296,31 +322,40 @@ function gameLoop(currentTime) {
 }
 
 // --- Initial setup ---
-loadAssets().then(() => {
-    console.log("Todos os assets carregados! Configurando jogo inicial...");
-    
-    // Inicializa o player e redimensiona o canvas APÓS os assets serem carregados
-    // e os elementos HTML estarem prontos.
-    resetGame(); // Garante estado inicial LIMPO e definido como 'MENU'
-    
-    // Redimensiona o canvas. É crucial que mobileControlsBar e gameContent sejam elementos válidos aqui.
-    resizeCanvas(canvas, playerState.player); 
-
-    showScreen(mainMenuScreen); // Exibe o menu principal (garantindo que ele está ativo no início)
-    console.log("Estado inicial do jogo após loadAssets e resetGame:", window.gameStates.gameState);
-
-    // Inicia o gameLoop. Ele vai renderizar o menu enquanto o gameState for 'MENU'.
-    // A lógica de jogo só começa quando o estado for 'PLAYING'.
-    animationFrameId = requestAnimationFrame(gameLoop); 
-}).catch(error => {
-    console.error("Erro ao carregar assets:", error);
-});
-
-// Ações adicionais no DOMContentLoaded para garantir que os elementos estejam disponíveis
+// Executa o setup inicial após o DOM estar completamente carregado
 document.addEventListener('DOMContentLoaded', () => {
     // Estas logs são para garantir que os botões são encontrados.
-    console.log("DOMContentLoaded - Verificando botões e elementos globais:");
+    console.log("DOMContentLoaded: Verificando botões e elementos globais em main.js:");
     console.log("startGameBtn:", startGameBtn);
     console.log("gameContent:", gameContent);
     console.log("mobileControlsBar (em main.js):", mobileControlsBar);
+    console.log("canvas (em main.js):", canvas);
+    console.log("ctx (em main.js):", ctx);
+
+    // Apenas tenta carregar assets e iniciar o jogo se o canvas e o contexto forem válidos
+    if (canvas && ctx) {
+        loadAssets().then(() => {
+            console.log("Todos os assets carregados! Configurando jogo inicial...");
+            
+            // Inicializa o player e redimensiona o canvas APÓS os assets serem carregados
+            // e os elementos HTML estarem prontos.
+            resetGame(); // Garante estado inicial LIMPO e definido como 'MENU'
+            
+            // Redimensiona o canvas. É crucial que mobileControlsBar e gameContent sejam elementos válidos aqui.
+            resizeCanvas(canvas, playerState.player); 
+
+            showScreen(mainMenuScreen); // Exibe o menu principal (garantindo que ele está ativo no início)
+            console.log("Estado inicial do jogo após loadAssets e resetGame:", window.gameStates.gameState);
+
+            // Inicia o gameLoop. Ele vai renderizar o menu enquanto o gameState for 'MENU'.
+            // A lógica de jogo só começa quando o estado for 'PLAYING'.
+            animationFrameId = requestAnimationFrame(gameLoop); 
+            console.log("gameLoop iniciado via requestAnimationFrame."); 
+        }).catch(error => {
+            console.error("Erro ao carregar assets:", error);
+        });
+    } else {
+        console.error("Não foi possível iniciar o jogo devido a problemas no canvas ou contexto.");
+        // Exibir uma mensagem de erro na tela para o usuário, se possível
+    }
 });
