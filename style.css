@@ -1,0 +1,250 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #333;
+    font-family: Arial, sans-serif;
+    color: #eee;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+#menu {
+    background-color: #222;
+    padding: 30px;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+#menu h1 {
+    color: #00ffcc;
+    margin-bottom: 20px;
+    text-shadow: 0 0 10px #00ffcc;
+}
+
+#menu button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #00ffcc;
+    color: #222;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#menu button:hover {
+    background-color: #00cc99;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#hud {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    gap: 20px;
+    color: #eee;
+    z-index: 100;
+}
+
+.hud-item {
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 8px 15px;
+    border-radius: 5px;
+}
+
+#game-area {
+    width: 800px;
+    height: 500px;
+    background-color: #1a1a1a; /* Cor de fundo escura, similar à imagem */
+    position: relative;
+    overflow: hidden;
+    border: 2px solid #555;
+}
+
+/* Estilos para os elementos do cenário */
+.ground-segment {
+    position: absolute;
+    background-color: #5d5d5d; /* Cor da pedra/chão */
+    border-top: 2px solid #8e8e8e; /* Borda superior para simular textura */
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.3);
+}
+
+.ground-texture {
+    position: absolute;
+    background-color: #4a4a4a; /* Cor mais escura para a parte de baixo da pedra */
+}
+
+.castle-tower {
+    position: absolute;
+    background-color: #4d4d4d; /* Cor das torres */
+    border: 1px solid #6a6a6a;
+}
+
+.castle-wall {
+    position: absolute;
+    background-color: #4d4d4d;
+    border: 1px solid #6a6a6a;
+}
+
+.castle-window {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background-color: #2a2a2a;
+    border: 1px solid #3a3a3a;
+}
+
+.moon {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background-color: #6a6a6a;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255,255,255,0.1);
+    top: 50px;
+    left: 450px;
+}
+
+.cloud {
+    position: absolute;
+    background-color: #3a3a3a;
+    border-radius: 50%;
+    opacity: 0.8;
+}
+.cloud.small {
+    width: 40px;
+    height: 20px;
+    border-radius: 20px / 10px;
+}
+.cloud.medium {
+    width: 60px;
+    height: 30px;
+    border-radius: 30px / 15px;
+}
+
+#player {
+    position: absolute;
+    width: 40px;
+    height: 60px;
+    background-color: #ff00ff; /* Mago */
+    bottom: 0px;
+    left: 100px;
+    border-radius: 5px;
+    box-shadow: 0 0 15px #ff00ff;
+    transition: left 0.05s linear, bottom 0.05s linear;
+}
+
+.enemy {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    background-color: #ff3300; /* Inimigo básico */
+    border-radius: 5px;
+    box-shadow: 0 0 10px #ff3300;
+}
+
+.enemy.giant {
+    width: 60px;
+    height: 60px;
+    background-color: #aa0000; /* Inimigo gigante */
+    border-radius: 10px;
+}
+
+.enemy.fast {
+    width: 25px;
+    height: 25px;
+    background-color: #ffa500; /* Inimigo rápido */
+    border-radius: 50%;
+}
+
+.enemy.sniper {
+    background-color: #00aaff; /* Inimigo sniper */
+    border-radius: 3px;
+    border: 2px solid #0055ff;
+}
+
+.projectile {
+    position: absolute;
+    width: 10px;
+    height: 20px;
+    background-color: #00ffff; /* Projétil inimigo */
+    border-radius: 3px;
+    box-shadow: 0 0 8px #00ffff;
+    transform-origin: center bottom;
+}
+
+.player-projectile {
+    width: 15px;
+    height: 15px;
+    background-color: #cc00cc; /* Projétil do player */
+    border-radius: 50%;
+    box-shadow: 0 0 10px #cc00cc;
+}
+
+#card-selection {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.9);
+    padding: 30px;
+    border-radius: 8px;
+    text-align: center;
+    z-index: 101;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 1);
+}
+
+#card-selection h2 {
+    color: #eee;
+    margin-bottom: 20px;
+}
+
+.card-options {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+
+.card-button {
+    width: 150px;
+    height: 180px;
+    padding: 10px;
+    font-size: 1em;
+    background-color: #444;
+    color: #eee;
+    border: 1px solid #888;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    align-items: center;
+    text-align: center;
+}
+
+.card-button:hover {
+    background-color: #666;
+    transform: translateY(-5px);
+}
+
+.card-button strong {
+    font-size: 1.2em;
+    color: #00ffcc;
+}
+.card-button span {
+    font-size: 0.9em;
+    color: #ccc;
+}
