@@ -1,14 +1,38 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Jogo Incrível</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Mago das Ondas Avançado</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
+    <div id="menu">
+        <h1>Mago das Ondas</h1>
+        <p>Wave Máxima: <span id="max-wave">0</span></p>
+        <button id="play-button">Jogar</button>
+    </div>
 
-    <script type="module" src="jogo/js/main.js"></script>
+    <div id="game-container" style="display: none;">
+        <div id="hud">
+            <div class="hud-item">Vida: <span id="hud-hp">100</span></div>
+            <div class="hud-item">MP: <span id="hud-mp">50</span></div>
+            <div class="hud-item">Pontos: <span id="hud-score">0</span></div>
+            <div class="hud-item">Level: <span id="hud-level">1</span></div>
+        </div>
+        <div id="game-area">
+            <div id="player"></div>
+        </div>
+        <div id="card-selection" style="display: none;">
+            <h2>Escolha uma Carta</h2>
+            <div class="card-options">
+                <button class="card-button" data-card-index="0"></button>
+                <button class="card-button" data-card-index="1"></button>
+                <button class="card-button" data-card-index="2"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
 </body>
 </html>
