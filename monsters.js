@@ -1,236 +1,151 @@
-// Variáveis que precisarão ser acessíveis de outros arquivos
-// Serão inicializadas em main.js e passadas ou acessadas via objeto global
-let monsters = [];
-let monsterProjectiles = [];
+// Definindo uma classe Monster
+class Monster {
+    constructor(type, x, y, size, health, speed, color, initial, sprite, contactDamage = 10, evadeChance = 0) {
+        this.type = type;
+        this.x = x;
+        this.y = y;
+        this.size = size;
+        this.health = health;
+        this.maxHealth = health;
+        this.speed = speed;
+        this.color = color;
+        this.initial = initial; // Initial for fallback drawing
+        this.sprite = sprite; // Key for loadedAssets
+        this.contactDamage = contactDamage; // Damage on collision with player
+        this.evadeChance = evadeChance; // For Ghost type
 
-let lastMonsterSpawnTime = 0;
-
-function spawnMonster(currentWave, monstersInWave, spawnedMonstersCount, GAME_WIDTH_GLOBAL, GAME_HEIGHT_GLOBAL) {
-    if (spawnedMonstersCount >= monstersInWave) {
-        return;
+        this.animationOffset = 0; // For floating animation
+        this.isAlive = true;
+        this.deathTime = 0; // Timestamp when monster died
     }
 
-    const now = Date.now();
-    let monsterSpawnDelay = Math.max(500, 1500 - (currentWave * 100)); // Adjusted dynamically
+    move(player) {
+        if (!this.isAlive) return;
 
-    if (now - lastMonsterSpawnTime > monsterSpawnDelay) {
-        const x = Math.random() * (GAME_WIDTH_GLOBAL - ACTUAL_MONSTER_BASE_SIZE);
-
-        let monsterTypeKeys = Object.keys(MONSTER_TYPES);
-        let availableTypes = monsterTypeKeys.filter(type =>
-            currentWave >= 1 || (type !== 'healer' && type !== 'exploder' && type !== 'ghost' && type !== 'giant_worm')
-        );
-
-        let monsterTypeKey;
-        const rand = Math.random();
-        if (currentWave >= 4 && rand < 0.1) {
-            monsterTypeKey = 'giant_worm';
-        } else if (currentWave >= 3 && rand < 0.2) {
-            monsterTypeKey = 'ghost';
-        } else if (currentWave >= 2.5 && rand < 0.3) {
-            monsterTypeKey = 'exploder';
-        } else if (currentWave >= 2 && rand < 0.4) {
-            monsterTypeKey = 'healer';
-        } else if (rand < 0.5 + (currentWave * 0.05)) {
-            const basicTypes = ['basic', 'shooter', 'tank', 'fast'];
-            monsterTypeKey = basicTypes[Math.floor(Math.random() * basicTypes.length)];
+        // Monsters move towards the player (only on X-axis for simplicity)
+        if (this.x < player.x) {
+            this.x += this.speed;
         } else {
-            monsterTypeKey = 'basic';
+            this.x -= this.speed;
         }
 
-        if (!availableTypes.includes(monsterTypeKey)) {
-            monsterTypeKey = 'basic';
+        this.y += this.speed; // Monsters move downwards
+
+        // Check if monster has moved past the player's y-position
+        // (This indicates it passed the bottom of the screen)
+        if (this.y > window.GAME_HEIGHT + this.size) { // Assumindo window.GAME_HEIGHT é a altura do canvas
+            this.isAlive = false; // Mark for removal
+            // console.log(`Monstro ${this.type} passou da tela e foi marcado para remoção.`);
         }
-
-        const typeData = MONSTER_TYPES[monsterTypeKey];
-        const monsterSize = ACTUAL_MONSTER_BASE_SIZE * typeData.sizeMultiplier * (1 + currentWave * 0.02);
-        const monsterHealth = 20 * (1 + currentWave * 0.2) * typeData.healthMultiplier;
-        const monsterSpeed = INITIAL_MONSTER_SPEED * (1 + (currentWave - 1) * 0.05) * typeData.speedMultiplier;
-
-        monsters.push({
-            x: x,
-            y: -monsterSize,
-            health: monsterHealth,
-            maxHealth: monsterHealth,
-            speed: monsterSpeed,
-            type: monsterTypeKey,
-            color: typeData.color,
-            initial: typeData.initial,
-            size: monsterSize,
-            canShoot: typeData.canShoot,
-            projectileColor: typeData.projectileColor,
-            projectileDamage: typeData.projectileDamage,
-            shootInterval: typeData.shootInterval,
-            lastShotTime: typeData.lastShotTime || 0,
-            xpValue: typeData.xp + (currentWave * 2),
-            contactDamage: typeData.contactDamage * (1 + currentWave * 0.05),
-            healAmount: typeData.healAmount || 0,
-            healRadius: typeData.healRadius || 0,
-            healInterval: typeData.healInterval || 0,
-            lastHealTime: typeData.lastHealTime || 0,
-            explosionRadius: typeData.explosionRadius || 0,
-            evadeChance: typeData.evadeChance || 0,
-            isSlowed: false,
-            slowTimer: 0,
-            sprite: typeData.sprite,
-            projectileSpeed: typeData.projectileSpeed,
-            projectileSize: typeData.projectileSize,
-            targetY: GAME_HEIGHT_GLOBAL * 0.3 + (Math.random() * GAME_HEIGHT_GLOBAL * 0.2),
-            animationOffset: 0,
-            animationStartTime: now
-        });
-        lastMonsterSpawnTime = now;
-        return true; // Indicates a monster was spawned
     }
-    return false; // No monster spawned
+
+    takeDamage(amount) {
+        this.health -= amount;
+        if (this.health <= 0) {
+            this.isAlive = false;
+            this.deathTime = performance.now(); // Record time of death
+        }
+    }
 }
 
+// Função para gerar monstros em uma onda
+// monsters array é global (do main.js)
+// window.gameStates.currentWave etc. são globais (do main.js)
+window.lastMonsterSpawnTime = 0; // Controla o tempo entre spawns
+
+function spawnMonster(currentWave, monstersInWave, spawnedMonstersCount, gameWidth, gameHeight) {
+    const now = performance.now();
+    const spawnInterval = 1000 - (currentWave * 20); // Faster spawns in higher waves (min 100ms)
+    
+    if (now - window.lastMonsterSpawnTime < spawnInterval) {
+        return false; // Not enough time has passed
+    }
+
+    if (spawnedMonstersCount >= monstersInWave) {
+        return false; // All monsters for this wave have been spawned
+    }
+
+    let monsterType = 'basic';
+    let monsterSize = 30;
+    let monsterSpeed = 1;
+    let monsterHealth = 20;
+    let monsterColor = 'red';
+    let monsterInitial = 'B';
+    let monsterSprite = 'monster_basic';
+    let contactDamage = 10;
+    let evadeChance = 0;
+
+    // Aumenta a dificuldade com as ondas
+    if (currentWave >= 2) {
+        monsterHealth += (currentWave - 1) * 5;
+        monsterSpeed += (currentWave - 1) * 0.2;
+    }
+    if (currentWave >= 3) {
+        // Chance de spawnar um monstro shooter ou ghost
+        const rand = Math.random();
+        if (rand < 0.2) { // 20% chance for shooter
+            monsterType = 'shooter';
+            monsterSize = 40;
+            monsterHealth *= 1.5;
+            monsterSpeed *= 0.8;
+            monsterColor = 'purple';
+            monsterInitial = 'S';
+            monsterSprite = 'monster_shooter';
+            contactDamage = 0; // Shooters deal damage with projectiles
+        } else if (rand < 0.4) { // 20% chance for ghost (total 40%)
+            monsterType = 'ghost';
+            monsterSize = 35;
+            monsterHealth *= 0.8; // Ghosts have less health but can evade
+            monsterSpeed *= 1.2;
+            monsterColor = 'cyan';
+            monsterInitial = 'G';
+            monsterSprite = 'monster_ghost';
+            contactDamage = 5;
+            evadeChance = 0.3; // 30% chance to evade player spells
+        } else if (rand < 0.6 && currentWave >= 5) { // 20% chance for exploder (total 60% with others)
+            monsterType = 'exploder';
+            monsterSize = 45;
+            monsterHealth *= 1.2;
+            monsterSpeed *= 0.9;
+            monsterColor = 'orange';
+            monsterInitial = 'E';
+            monsterSprite = 'monster_exploder';
+            contactDamage = 30; // Explodes on contact
+        }
+    }
+
+    const x = Math.random() * (gameWidth - monsterSize);
+    const y = -monsterSize; // Spawn above the screen
+
+    const newMonster = new Monster(monsterType, x, y, monsterSize, monsterHealth, monsterSpeed, monsterColor, monsterInitial, monsterSprite, contactDamage, evadeChance);
+    monsters.push(newMonster);
+    window.lastMonsterSpawnTime = now;
+    // console.log(`Monstro ${newMonster.type} (Onda ${currentWave}) spawna. Total: ${monsters.length}`);
+    return true; // Monster was spawned
+}
+
+// Função para mover todos os monstros
 function moveMonsters(player, endGameCallback) {
-    const now = Date.now();
     for (let i = monsters.length - 1; i >= 0; i--) {
         let monster = monsters[i];
-        let currentMonsterSpeed = monster.speed;
-        if (monster.isSlowed && now < monster.slowTimer) {
-            currentMonsterSpeed *= SPELLS_DATA['Explosão Congelante'].slowFactor;
-        }
+        monster.animationOffset = ENTITY_ANIMATION_AMPLITUDE * Math.sin(performance.now() * ENTITY_ANIMATION_SPEED * 0.001 + monster.x);
+        monster.move(player);
 
-        monster.animationOffset = ENTITY_ANIMATION_AMPLITUDE * Math.sin((now - monster.animationStartTime) * ENTITY_ANIMATION_SPEED * 0.001);
-
-        let nextX = monster.x;
-        let nextY = monster.y;
-
-        if (monster.y < monster.targetY) {
-            nextY += currentMonsterSpeed;
-        } else {
-            const monsterCenterX = monster.x + monster.size / 2;
-            const playerCenterX = player.x + player.size / 2;
-
-            if (monsterCenterX < playerCenterX) {
-                nextX += currentMonsterSpeed;
-            } else if (monsterCenterX > playerCenterX) {
-                nextX -= currentMonsterSpeed;
-            }
-        }
-
-        const tempRect = { x: nextX, y: nextY, width: monster.size, height: monster.size };
-
-        for (let j = 0; j < monsters.length; j++) {
-            if (j === i) continue;
-
-            const other = monsters[j];
-            const otherRect = { x: other.x, y: other.y, width: other.size, height: other.size };
-
-            if (tempRect.x < otherRect.x + otherRect.width &&
-                tempRect.x + tempRect.width > otherRect.x &&
-                tempRect.y < otherRect.y + otherRect.height &&
-                tempRect.y + tempRect.height > otherRect.y)
-            {
-                const dx = tempRect.x - otherRect.x;
-                const dy = tempRect.y - otherRect.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) {
-                    nextX += (dx / dist) * 0.5;
-                    nextY += (dy / dist) * 0.5;
-                }
-                break;
-            }
-        }
-
-        monster.x = nextX;
-        monster.y = nextY;
-
-        // Monster Shooting Logic
-        // Usando window.GAME_HEIGHT para acessar a variável global
-        if (monster.canShoot && now - monster.lastShotTime > monster.shootInterval && monster.y > 0 && monster.y < window.GAME_HEIGHT * 0.7) {
-            const monsterCenterX = monster.x + monster.size / 2;
-            const monsterCenterY = monster.y + monster.size / 2;
-            const playerCenterX = player.x + player.size / 2;
-            const playerCenterY = player.y + player.size / 2;
-
-            const dx = playerCenterX - monsterCenterX;
-            const dy = playerCenterY - monsterCenterY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            const vx = (dx / distance) * monster.projectileSpeed;
-            const vy = (dy / distance) * monster.projectileSpeed;
-
-            monsterProjectiles.push({
-                x: monsterCenterX,
-                y: monsterCenterY,
-                color: monster.projectileColor,
-                damage: monster.projectileDamage,
-                size: monster.projectileSize,
-                vx: vx,
-                vy: vy
-            });
-            monster.lastShotTime = now;
-        }
-
-        if (monster.type === 'healer' && now - monster.lastHealTime > monster.healInterval) {
-            monsters.forEach(otherMonster => {
-                const dist = Math.sqrt(
-                    Math.pow((monster.x + monster.size / 2) - (otherMonster.x + otherMonster.size / 2), 2) +
-                    Math.pow((monster.y + monster.size / 2) - (otherMonster.y + otherMonster.size / 2), 2)
-                );
-                if (monster !== otherMonster && dist < monster.healRadius) {
-                    otherMonster.health = Math.min(otherMonster.maxHealth, otherMonster.health + monster.healAmount);
-                }
-            });
-            monster.lastHealTime = now;
-        }
-
-        // Usando window.GAME_HEIGHT para acessar a variável global
-        if (monster.y > window.GAME_HEIGHT) {
-            if (monster.type === 'exploder') {
-                monsters.splice(i, 1);
-                continue;
-            }
-            if (monster.type !== 'shooter') { // Only non-shooter monsters cause contact damage if they pass by
-                takeDamage(player, monster.contactDamage, endGameCallback);
-            }
+        // Se o monstro passou da tela, causa dano ao jogador
+        if (!monster.isAlive && monster.y > window.GAME_HEIGHT + monster.size) {
+            takeDamage(player, 10, endGameCallback); // Perde 10 de vida por monstro que escapa
             monsters.splice(i, 1);
+            // console.log("Monstro escapou! Vida do jogador:", player.health);
         }
     }
 }
 
-function moveMonsterProjectiles() {
-    for (let i = monsterProjectiles.length - 1; i >= 0; i--) {
-        let projectile = monsterProjectiles[i];
-        projectile.x += projectile.vx;
-        projectile.y += projectile.vy;
-
-        // Usando window.GAME_WIDTH e window.GAME_HEIGHT para acessar as variáveis globais
-        if (projectile.y < 0 || projectile.y > window.GAME_HEIGHT || projectile.x < 0 || projectile.x > window.GAME_WIDTH) {
-            monsterProjectiles.splice(i, 1);
-        }
-    }
-}
-
-// Adaptação: agora recebe player e gainXPCallback (passados de main.js)
+// Função para lidar com a derrota de um monstro
 function handleMonsterDefeat(monster, index, player, gainXPCallback) {
-    if (monster.type === 'exploder') {
-        monsters.forEach(otherMonster => {
-            const dist = Math.sqrt(
-                Math.pow((monster.x + monster.size / 2) - (otherMonster.x + otherMonster.size / 2), 2) +
-                Math.pow((monster.y + monster.size / 2) - (otherMonster.y + otherMonster.size / 2), 2)
-            );
-            if (monster !== otherMonster && dist < monster.explosionRadius) {
-                applyDamageToMonster(otherMonster, monster.contactDamage * 0.5);
-                if (otherMonster.health <= 0) {
-                    const otherIndex = monsters.indexOf(otherMonster);
-                    if (otherIndex > -1) {
-                        monsters.splice(otherIndex, 1);
-                        if (otherIndex < index) index--; // Adjust index if monster before current was removed
-                    }
-                }
-            }
-        });
-        // Exploder does self-damage/player damage on death too, no game over
-        // endGameCallback is not relevant here for explosion damage specifically
-        takeDamage(player, monster.contactDamage * 0.5, () => {});
+    if (!monster.isAlive) {
+        monsters.splice(index, 1); // Remove o monstro do array
+        window.gameStates.monstersKilledInWave++; // Incrementa o contador de monstros mortos
+        gainXPCallback(player, MONSTER_XP_VALUES[monster.type] || 10, () => player.levelUp()); // XP baseada no tipo, chama player.levelUp()
+        // console.log(`Monstro ${monster.type} derrotado! Monstros restantes na onda: ${monsters.length}`);
     }
-    gainXPCallback(player, monster.xpValue, levelUp); // Pass levelUp as a callback to gainXP
-    monsters.splice(index, 1);
-    // gameStates é uma variável global em main.js. Aqui, estamos acessando-a diretamente.
-    window.gameStates.monstersKilledInWave++;
 }
