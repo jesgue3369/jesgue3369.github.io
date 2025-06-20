@@ -61,7 +61,7 @@ canvas {
 }
 
 #mobile-controls-bar {
-    display: flex;
+    display: none; /* Inicia escondido por padrão e JS o controlará */
     justify-content: space-between;
     align-items: center;
     padding: 10px;
@@ -69,7 +69,6 @@ canvas {
     border-top: 1px solid #444;
     box-sizing: border-box;
     min-height: 60px; /* Ensure it has some height */
-    /* display: none;  Será controlado pelo JS, aparecerá com game-content */
 }
 
 #mobile-controls-bar button {
@@ -167,7 +166,6 @@ canvas {
     transform: translateY(-5px);
     border-color: #4CAF50;
 }
-
 .ability-card h3 {
     color: #008CBA;
     margin-top: 0;
