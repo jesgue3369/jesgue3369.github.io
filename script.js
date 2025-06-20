@@ -1,8 +1,7 @@
 const menu = document.getElementById('menu');
 const playButton = document.getElementById('play-button');
 const gameContainer = document.getElementById('game-container');
-const gameArea = document.getElementById('game-area');
-let player = document.getElementById('player'); // Pode ser recriado
+let player = document.getElementById('player'); // 'let' para que possamos reatribuí-lo se for recriado
 
 const hudHp = document.getElementById('hud-hp');
 const hudMp = document.getElementById('hud-mp');
@@ -31,7 +30,7 @@ let playerMaxHp = 100;
 let playerMp = 50;
 let playerMaxMp = 50;
 let playerLevel = 1;
-let playerMpRegenRate = 0.05; // Ajustado para ser mais lento inicialmente
+let playerMpRegenRate = 0.05;
 let score = 0;
 let currentWave = 0;
 let enemies = [];
@@ -41,8 +40,8 @@ let keysPressed = {};
 let mouseX = 0;
 let mouseY = 0;
 let canShoot = true;
-let shootCooldown = 600; // ms (aumentado para balancear)
-let waveDifficultyMultiplier = 1.1; // Aumenta a dificuldade por wave
+let shootCooldown = 600; // ms
+let waveDifficultyMultiplier = 1.1;
 let maxReachedWave = 0;
 
 let gameLoopInterval; // Para o requestAnimationFrame
@@ -70,7 +69,6 @@ const wavesData = [
     { count: 12, types: ['basic', 'fast', 'sniper', 'giant'], baseEnemySpeed: 2.5, spawnDelay: 800, cards: true },
     { count: 15, types: ['basic', 'fast', 'sniper', 'giant'], baseEnemySpeed: 2.8, spawnDelay: 700, cards: false },
     { count: 18, types: ['basic', 'fast', 'sniper', 'giant'], baseEnemySpeed: 3.0, spawnDelay: 600, cards: true },
-    // Adicione mais waves aqui para aumentar a dificuldade
 ];
 
 // --- Enemy Classes ---
@@ -150,7 +148,7 @@ class Enemy {
 
     move(playerRect) {
         let targetX = playerRect.left + playerRect.width / 2;
-        let targetY = playerRect.top + playerRect.height / 2;
+        // let targetY = playerRect.top + playerRect.height / 2; // Não usado diretamente para movimento vertical de inimigos
 
         // Gravidade e Colisão com o chão
         this.velocityY += gravity; // Aplica gravidade
@@ -295,7 +293,7 @@ function moveEnemyProjectiles() {
 }
 
 // --- Player Movement ---
-let currentGroundY = 0; // A altura do chão atual do player (distância do bottom)
+let currentGroundY = 0; // A altura do chão atual do player (distância do bottom da gameArea)
 
 // Encontra o chão mais alto sob o player
 function getPlayerGroundY() {
@@ -303,13 +301,13 @@ function getPlayerGroundY() {
 
     for (const platform of platforms) {
         // Converte as coordenadas do player e plataforma para "bottom"
-        const playerBottom = playerY;
+        const playerBottom = playerY; // Bottom do player em relação ao bottom da gameArea
         const platformTop = platform.y + platform.height; // Topo da plataforma em relação ao bottom da gameArea
 
         // Verifica sobreposição horizontal
         if (playerX + playerWidth > platform.x && playerX < platform.x + platform.width) {
-            // Se o player está caindo e vai pousar na plataforma
-            if (playerBottom >= platformTop && (playerBottom + velocityY) <= platformTop) {
+            // Se o player está caindo (velocityY negativo) e está acima ou vai pousar na plataforma
+            if (velocityY <= 0 && playerBottom >= platformTop && (playerBottom + velocityY) <= platformTop) {
                 newGroundY = Math.max(newGroundY, platformTop);
             }
         }
@@ -365,12 +363,15 @@ function movePlayer() {
 
 // --- Scenario Generation ---
 function generateScenario() {
-    // Limpa o cenário anterior, exceto o player
+    console.log('Generating scenario...');
+    // Limpa o cenário anterior, exceto o player (que é gerenciado separadamente)
     gameArea.querySelectorAll('.ground-segment, .ground-texture, .castle-tower, .castle-wall, .castle-window, .moon, .cloud').forEach(el => el.remove());
 
     // Lua
     const moon = document.createElement('div');
     moon.classList.add('moon');
+    moon.style.top = '50px'; // Usando top para lua
+    moon.style.left = '450px';
     gameArea.appendChild(moon);
 
     // Nuvens (posições e tamanhos aleatórios)
@@ -389,7 +390,7 @@ function generateScenario() {
     mainGround.style.width = `${gameArea.offsetWidth}px`;
     mainGround.style.height = `50px`;
     mainGround.style.left = `0px`;
-    mainGround.style.bottom = `0px`;
+    mainGround.style.bottom = `0px`; // Usando bottom para o chão
     gameArea.appendChild(mainGround);
 
     const mainGroundTexture = document.createElement('div');
@@ -476,6 +477,7 @@ function generateScenario() {
     platform4.style.left = `0px`;
     platform4.style.bottom = `220px`;
     gameArea.appendChild(platform4);
+    console.log('Scenario generation complete.');
 }
 
 
@@ -489,6 +491,7 @@ function spawnEnemy(type, baseSpeed) {
 }
 
 function startWave() {
+    console.log(`Starting Wave ${currentWave + 1}...`);
     currentWave++;
     if (currentWave > wavesData.length) {
         isGameRunning = false;
@@ -499,7 +502,6 @@ function startWave() {
 
     const waveData = wavesData[currentWave - 1];
     
-    // Atualiza a dificuldade para esta wave
     let currentEnemySpeed = waveData.baseEnemySpeed;
     
     let enemiesToSpawn = waveData.count;
@@ -515,6 +517,7 @@ function startWave() {
             // A transição para a próxima wave (ou cartas) acontece em checkCollisions
         }
     }, waveData.spawnDelay);
+    console.log(`Wave ${currentWave} setup complete.`);
 }
 
 // --- Card Selection ---
@@ -527,14 +530,12 @@ const cards = [
     { name: 'Projéteis Fortalecidos', description: 'Aumento de dano nos tiros.', effect: () => { /* Implementar dano em Projectile */ } },
     { name: 'Recuperação Instantânea', description: 'Restaura 50% de HP e MP.', effect: () => { playerHp = Math.min(playerMaxHp, playerHp + playerMaxHp * 0.5); playerMp = Math.min(playerMaxMp, playerMp + playerMaxMp * 0.5); updateHud(); } },
     { name: 'Explosão Arcana', description: 'Habilidade ativa: detona inimigos próximos (custo de MP).', effect: () => {
-        // Exemplo: Adicionar botão ou atalho para ativar esta habilidade
         alert('Habilidade "Explosão Arcana" adquirida! (Lógica precisa ser implementada)');
-        // Você precisaria de um sistema de habilidades ativas
     }},
-    // Adicione mais cartas para diversificar
 ];
 
 function showCardSelection() {
+    console.log('Showing card selection...');
     isGameRunning = false; // Pausa o jogo
     cardSelectionDiv.style.display = 'flex';
     const availableCards = [];
@@ -553,6 +554,7 @@ function showCardSelection() {
 }
 
 function selectCard(cardIndex) {
+    console.log(`Card selected: ${cards[cardIndex].name}`);
     cards[cardIndex].effect(); // Aplica o efeito da carta
     cardSelectionDiv.style.display = 'none';
     isGameRunning = true; // Retoma o jogo
@@ -560,16 +562,23 @@ function selectCard(cardIndex) {
 }
 
 function startNextWave() {
+    console.log('Starting next wave countdown...');
     setTimeout(startWave, 2000); // Pequena pausa antes da próxima wave
 }
 
 // --- Collision Detection ---
 function checkCollisions() {
-    const playerRect = player.getBoundingClientRect(); // Obtém a bounding box do player
+    // Verificamos se o player existe antes de tentar obter seu BoundingClientRect
+    if (!player || !player.parentElement) {
+        console.warn("Player element not found or not in DOM during collision check.");
+        return;
+    }
+    const playerRect = player.getBoundingClientRect();
 
     // Player vs Enemy Projectiles
     for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
         const projectile = enemyProjectiles[i];
+        if (!projectile.element || !projectile.element.parentElement) continue; // Pula se o elemento não existe mais
         const projectileRect = projectile.element.getBoundingClientRect();
 
         if (rectIntersection(playerRect, projectileRect)) {
@@ -587,10 +596,12 @@ function checkCollisions() {
     // Player Projectiles vs Enemies
     for (let i = playerProjectiles.length - 1; i >= 0; i--) {
         const projectile = playerProjectiles[i];
+        if (!projectile.element || !projectile.element.parentElement) continue; // Pula se o elemento não existe mais
         const projectileRect = projectile.element.getBoundingClientRect();
 
         for (let j = enemies.length - 1; j >= 0; j--) {
             const enemy = enemies[j];
+            if (!enemy.element || !enemy.element.parentElement) continue; // Pula se o elemento não existe mais
             const enemyRect = enemy.element.getBoundingClientRect();
 
             if (rectIntersection(projectileRect, enemyRect)) {
@@ -608,9 +619,13 @@ function checkCollisions() {
 
     // Enemy vs Enemy (Prevenção de sobreposição simples)
     for (let i = 0; i < enemies.length; i++) {
+        const enemy1 = enemies[i];
+        if (!enemy1.element || !enemy1.element.parentElement) continue;
+
         for (let j = i + 1; j < enemies.length; j++) {
-            const enemy1 = enemies[i];
             const enemy2 = enemies[j];
+            if (!enemy2.element || !enemy2.element.parentElement) continue;
+            
             const rect1 = enemy1.element.getBoundingClientRect();
             const rect2 = enemy2.element.getBoundingClientRect();
 
@@ -629,9 +644,9 @@ function checkCollisions() {
     }
 
     // Verificar se a wave foi limpa
-    // Apenas se nenhum inimigo foi spawnado na wave atual e todos os inimigos existentes foram eliminados
     const currentWaveData = wavesData[currentWave - 1];
     if (currentWaveData && enemies.length === 0 && isGameRunning) {
+        console.log('Wave cleared!');
         if (currentWaveData.cards) {
             showCardSelection();
         } else {
@@ -649,16 +664,16 @@ function rectIntersection(rect1, rect2) {
 
 // --- Game Over ---
 function gameOver() {
+    console.log('Game Over!');
     isGameRunning = false;
-    // Limpa todos os intervalos de tiro dos inimigos
     enemies.forEach(e => {
         if (e.shootInterval) clearInterval(e.shootInterval);
     });
-    cancelAnimationFrame(gameLoopInterval); // Para o loop do jogo (usando requestAnimationFrame)
+    cancelAnimationFrame(gameLoopInterval);
     alert(`Game Over! Pontuação: ${score}, Wave: ${currentWave}`);
     if (currentWave > maxReachedWave) {
         maxReachedWave = currentWave;
-        localStorage.setItem('maxWave', maxReachedWave); // Salva a wave máxima
+        localStorage.setItem('maxWave', maxReachedWave);
     }
     showMenu();
 }
@@ -673,16 +688,15 @@ function updateHud() {
 
 // --- Level Up ---
 function checkLevelUp() {
-    // Exemplo de progressão: a cada 100 pontos, um nível
     const pointsForNextLevel = playerLevel * 100;
     if (score >= pointsForNextLevel) {
         playerLevel++;
-        playerMaxHp += 20; // Aumenta HP máximo
-        playerHp = playerMaxHp; // Restaura HP para o novo máximo
-        playerMaxMp += 10; // Aumenta MP máximo
-        playerMp = playerMaxMp; // Restaura MP para o novo máximo
-        playerMpRegenRate += 0.02; // Pequeno aumento na regen
-        playerSpeed += 0.2; // Pequeno aumento de velocidade
+        playerMaxHp += 20;
+        playerHp = playerMaxHp;
+        playerMaxMp += 10;
+        playerMp = playerMaxMp;
+        playerMpRegenRate += 0.02;
+        playerSpeed += 0.2;
         updateHud();
         alert(`Level Up! Você alcançou o Nível ${playerLevel}!`);
     }
@@ -690,31 +704,34 @@ function checkLevelUp() {
 
 // --- Game Loop ---
 function gameLoop() {
-    if (!isGameRunning) return;
+    if (!isGameRunning) {
+        console.log('Game loop stopped.');
+        return;
+    }
 
     movePlayer();
-    const playerRectForEnemies = player.getBoundingClientRect(); // Posição atual do player
-    enemies.forEach(enemy => enemy.move(playerRectForEnemies)); // Inimigos precisam da posição do player
+    // Verifica se o player ainda existe antes de obter o rect
+    const playerRectForEnemies = player && player.parentElement ? player.getBoundingClientRect() : null;
+    if (playerRectForEnemies) { // Só move inimigos se o player existe
+        enemies.forEach(enemy => enemy.move(playerRectForEnemies));
+    }
     movePlayerProjectiles();
     moveEnemyProjectiles();
     checkCollisions();
     checkLevelUp();
 
-    // Regeneração de MP
     playerMp = Math.min(playerMaxMp, playerMp + playerMpRegenRate);
     updateHud();
 
-    // Remove inimigos que morreram ou saíram da tela
     enemies = enemies.filter(enemy => enemy.element && enemy.element.parentElement);
     playerProjectiles = playerProjectiles.filter(p => p.element && p.element.parentElement);
-    enemyProjectiles = enemyProjectectiles.filter(p => p.element && p.element.parentElement);
+    enemyProjectiles = enemyProjectiles.filter(p => p.element && p.element.parentElement);
 
     gameLoopInterval = requestAnimationFrame(gameLoop);
 }
 
 // --- Event Listeners ---
 gameArea.addEventListener('mousemove', (e) => {
-    // As coordenadas do mouse são relativas à gameArea
     mouseX = e.offsetX;
     mouseY = e.offsetY;
 });
@@ -727,13 +744,23 @@ playButton.addEventListener('click', () => {
 
 // --- Start New Game ---
 function startNewGame() {
+    console.log('startNewGame called');
+    // Verifica se os elementos DOM essenciais existem
+    if (!menu || !gameContainer || !gameArea || !player) {
+        console.error('Um ou mais elementos DOM essenciais não foram encontrados!', { menu, gameContainer, gameArea, player });
+        alert('Erro ao iniciar o jogo: Componentes essenciais não encontrados. Verifique o console para detalhes.');
+        return; // Impede a execução se elementos críticos estiverem faltando
+    }
+
     menu.style.display = 'none';
-    gameContainer.style.display = 'flex'; // Usar flex para centralizar game-area
+    console.log('Menu hidden');
+    gameContainer.style.display = 'flex';
+    console.log('Game container shown');
 
     // Resetar estado do jogo
     isGameRunning = true;
     playerX = 100;
-    playerY = 50; // Posição inicial no chão
+    playerY = 50;
     playerHp = 100;
     playerMaxHp = 100;
     playerMp = 50;
@@ -747,32 +774,64 @@ function startNewGame() {
     waveDifficultyMultiplier = 1.1;
 
     // Remover todos os elementos anteriores (inimigos, projéteis, cenário)
-    gameArea.querySelectorAll('.enemy, .projectile, .ground-segment, .ground-texture, .castle-tower, .castle-wall, .castle-window, .moon, .cloud').forEach(el => el.remove());
+    // Usar querySelectorAll com um array de seletores é robusto.
+    try {
+        gameArea.querySelectorAll('.enemy, .projectile, .ground-segment, .ground-texture, .castle-tower, .castle-wall, .castle-window, .moon, .cloud').forEach(el => el.remove());
+        console.log('Previous game elements cleared from gameArea.');
+    } catch (e) {
+        console.error('Error clearing old game elements:', e);
+    }
     enemies = [];
     playerProjectiles = [];
     enemyProjectiles = [];
 
-    // Recria o elemento do player se necessário (se ele foi removido em gameOver)
-    if (!document.getElementById('player')) {
+    // Garante que o elemento 'player' esteja no DOM e que a variável 'player' o referencie corretamente
+    let existingPlayerElement = document.getElementById('player');
+    if (!existingPlayerElement) {
         player = document.createElement('div');
         player.id = 'player';
         gameArea.appendChild(player);
+        console.log('Player element was missing, created and appended.');
+    } else {
+        // Se o player existia mas foi removido do gameArea por algum motivo (improvável com o método atual de limpeza)
+        if (!gameArea.contains(existingPlayerElement)) {
+            gameArea.appendChild(existingPlayerElement);
+            console.log('Existing player element re-appended to gameArea.');
+        }
+        player = existingPlayerElement; // Garante que a variável 'player' aponte para o elemento correto no DOM
     }
     player.style.left = `${playerX}px`;
-    player.style.bottom = `${playerY}px`; // Inicia no chão
+    player.style.bottom = `${playerY}px`;
+    console.log('Player positioned at starting point.');
 
-    generateScenario(); // Gera o cenário programaticamente
+    try {
+        generateScenario();
+        console.log('Scenario generated successfully.');
+    } catch (e) {
+        console.error('Error in generateScenario():', e);
+        alert('Erro ao gerar o cenário. Verifique o console.');
+        return; // Interrompe se o cenário não pôde ser gerado
+    }
 
     updateHud();
+    console.log('HUD updated.');
     startWave();
-    gameLoopInterval = requestAnimationFrame(gameLoop); // Inicia o loop do jogo
+    console.log('Initial wave started.');
+    
+    // Cancela qualquer loop anterior para evitar múltiplas execuções
+    if (gameLoopInterval) {
+        cancelAnimationFrame(gameLoopInterval);
+    }
+    gameLoopInterval = requestAnimationFrame(gameLoop);
+    console.log('Game loop initiated.');
 }
 
 // --- Show Menu ---
 function showMenu() {
-    menu.style.display = 'flex';
-    gameContainer.style.display = 'none';
-    maxWaveDisplay.textContent = localStorage.getItem('maxWave') || 0; // Carrega a wave máxima salva
+    console.log('Showing menu...');
+    if (menu) menu.style.display = 'flex';
+    if (gameContainer) gameContainer.style.display = 'none';
+    if (maxWaveDisplay) maxWaveDisplay.textContent = localStorage.getItem('maxWave') || 0;
 }
 
 // --- Initialize ---
