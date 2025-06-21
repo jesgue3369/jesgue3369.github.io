@@ -16,7 +16,7 @@ const moveLeftBtn = document.getElementById('move-left-btn');
 const moveRightBtn = document.getElementById('move-right-btn');
 const castSpellBtn = document.getElementById('cast-spell-btn');
 const prevSpellBtn = document.getElementById('prev-spell-btn');
-const nextSpellBtn = document.getElementById('next-spell-btn');
+const nextSpellBtn = document = document.getElementById('next-spell-btn');
 
 // --- Configurações do Jogo ---
 let GAME_WIDTH;
@@ -73,7 +73,8 @@ const spellsData = {
     'Rajada Arcana': { damage: 15, cost: 8, color: 'purple', cooldown: 150, description: "Uma rápida rajada de energia arcana." },
     'Cura Menor': { heal: 30, cost: 20, color: 'lime', cooldown: 1000, type: 'heal', description: "Recupera uma pequena quantidade de vida." },
     'Escudo Arcano': { shieldAmount: 50, cost: 25, color: 'cyan', cooldown: 1500, type: 'shield', description: "Cria um escudo temporário." },
-    'Relâmpago': { damage: 40, cost: 30, color: 'gold', cooldown: 800, type: 'aoe_lightning', radius: 100, description: "Um raio atinge inimigos próximos ao jogador." },
+    // Reformulação do Relâmpago: Agora é um projétil que causa dano em cadeia
+    'Relâmpago': { damage: 40, cost: 30, color: 'gold', cooldown: 800, type: 'chain_lightning_projectile', sprite: 'spell_fagulha', description: "Um projétil que causa dano em cadeia em até 5 inimigos." },
     'Névoa Venenosa': { damagePerTick: 5, tickInterval: 500, duration: 3000, radius: 80, cost: 25, color: 'darkgreen', cooldown: 1200, type: 'aoe_dot', description: "Cria uma nuvem venenosa que causa dano ao longo do tempo." },
     'Explosão Congelante': { damage: 35, slowFactor: 0.5, slowDuration: 2000, radius: 70, cost: 28, color: 'skyblue', cooldown: 1000, type: 'aoe_slow', description: "Explosão que causa dano e retarda inimigos." },
     'Drenar Vida': { damage: 20, lifeSteal: 0.5, cost: 18, color: 'darkred', cooldown: 600, type: 'lifesteal', description: "Drena vida dos inimigos para o jogador." },
@@ -254,24 +255,15 @@ function drawMonsters() {
 function drawSpells() {
     spells.forEach(spell => {
         const spellSprite = loadedAssets[spell.sprite];
-        if (spell.type === 'aoe_lightning') {
-            ctx.strokeStyle = spell.color;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(spell.x, 0);
-            ctx.lineTo(spell.x, spell.y);
-            ctx.stroke();
-            ctx.fillStyle = spell.color;
-            ctx.beginPath();
-            ctx.arc(spell.x, spell.y, spell.radius / 2, 0, Math.PI * 2);
-            ctx.fill();
-        } else if (spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
+        // O tipo 'aoe_lightning' foi removido e substituído por 'chain_lightning_projectile'
+        // A lógica de desenho anterior para 'aoe_lightning' não é mais necessária aqui.
+        if (spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
              ctx.fillStyle = spell.color.replace(')', ', 0.4)');
              ctx.beginPath();
              ctx.arc(spell.x, spell.y, spell.radius, 0, Math.PI * 2);
              ctx.fill();
         }
-        else {
+        else { // Isso lida com projéteis regulares e o novo 'chain_lightning_projectile'
             if (spellSprite && spellSprite.complete) {
                 ctx.drawImage(spellSprite, spell.x - SPELL_SIZE / 2, spell.y - SPELL_SIZE / 2, SPELL_SIZE, SPELL_SIZE);
             } else {
@@ -319,12 +311,14 @@ function updateHUD() {
 // --- Lógica do Jogo ---
 function movePlayer() {
     const currentSpeed = PLAYER_SPEED + player.movementSpeedBonus;
-    if (keys['ArrowLeft'] && player.x > 0) {
+    // Adicionado controles 'A' e 'D'
+    if ((keys['ArrowLeft'] || keys['a'] || keys['A']) && player.x > 0) {
         player.x -= currentSpeed;
     }
-    if (keys['ArrowRight'] && player.x < GAME_WIDTH - player.size) {
+    if ((keys['ArrowRight'] || keys['d'] || keys['D']) && player.x < GAME_WIDTH - player.size) {
         player.x += currentSpeed;
     }
+    // Mantido para compatibilidade com controles mobile/touch
     if (isMovingLeft && player.x > 0) {
         player.x -= currentSpeed;
     }
@@ -509,12 +503,14 @@ function moveSpells() {
     const now = Date.now();
     for (let i = spells.length - 1; i >= 0; i--) {
         let spell = spells[i];
-        if (spell.type === 'aoe_lightning' || spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
+        // AOE spells (dot/slow) are duration-based, not projectile movement
+        if (spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
             if (now - spell.castTime > spell.duration) {
                 spells.splice(i, 1);
             }
-            continue;
+            continue; // Skip movement logic for these types
         }
+        // All other spells are projectiles that move
         spell.x += spell.vx;
         spell.y += spell.vy;
         if (spell.y < 0 || spell.y > GAME_HEIGHT || spell.x < 0 || spell.x > GAME_WIDTH) {
@@ -562,44 +558,78 @@ function updatePoisonClouds() {
 }
 
 function handleCollisions() {
+    const CHAIN_RADIUS = 150; // Raio para o raio em cadeia pular para o próximo alvo
+    const MAX_CHAIN_TARGETS = 5; // Número total de alvos para o raio em cadeia (incluindo o inicial)
+
     for (let i = spells.length - 1; i >= 0; i--) {
         let spell = spells[i];
-        if (spell.type === 'aoe_lightning' || spell.type === 'aoe_slow') {
-            monsters.forEach(monster => {
-                const dist = Math.sqrt(Math.pow(spell.x - (monster.x + monster.size / 2), 2) + Math.pow(spell.y - (monster.y + monster.size / 2), 2));
-                if (dist < spell.radius) {
-                    let finalDamage = spell.damage * player.spellPower;
-                    if (Math.random() < player.criticalChance) {
-                        finalDamage *= 1.5;
-                    }
-                    monster.health -= finalDamage;
-                    if (spell.type === 'aoe_slow') {
-                        monster.isSlowed = true;
-                        monster.slowTimer = Date.now() + spell.slowDuration;
-                    }
-                }
-            });
-            continue;
-        } else if (spell.type === 'aoe_dot') {
-            continue;
+
+        // Se a magia é do tipo AOE (ponto de dano ou lentidão), ela não colide como um projétil,
+        // seus efeitos são tratados por duração ou ticks.
+        if (spell.type === 'aoe_dot' || spell.type === 'aoe_slow') {
+             continue; // Pula para a próxima magia, pois não é um projétil colidível aqui.
         }
+
+        // Lidar com colisão para magias baseadas em projéteis (incluindo o novo Relâmpago em cadeia)
         for (let j = monsters.length - 1; j >= 0; j--) {
             let monster = monsters[j];
             if (checkCollision(spell, monster)) {
+                // Verificação de evasão de fantasma para qualquer projétil
                 if (monster.type === 'ghost' && Math.random() < monster.evadeChance) {
-                    spells.splice(i, 1);
-                    break;
+                    spells.splice(i, 1); // Projétil evadido é consumido
+                    break; // Sai do loop interno e vai para a próxima magia
                 }
+
                 let finalDamage = spell.damage * player.spellPower;
                 if (Math.random() < player.criticalChance) {
                     finalDamage *= 1.5;
                 }
-                monster.health -= finalDamage;
-                if (spell.type === 'lifesteal') {
+
+                if (spell.type === 'chain_lightning_projectile') {
+                    // Lógica do Relâmpago em cadeia
+                    monster.health -= finalDamage; // Primeiro acerto
+                    let hitMonsters = new Set(); // Para rastrear monstros já atingidos na cadeia
+                    hitMonsters.add(monster);
+                    let lastHitMonster = monster; // O último monstro atingido para calcular o próximo salto
+
+                    for (let k = 1; k < MAX_CHAIN_TARGETS; k++) { // Começa de 1 porque o primeiro alvo já foi atingido
+                        let closestUnhitMonster = null;
+                        let minDistance = Infinity;
+
+                        monsters.forEach(potentialTarget => {
+                            // Certifica-se de que o monstro não foi atingido nesta cadeia e não é o monstro atual
+                            if (!hitMonsters.has(potentialTarget)) {
+                                const dist = Math.sqrt(
+                                    Math.pow((lastHitMonster.x + lastHitMonster.size/2) - (potentialTarget.x + potentialTarget.size/2), 2) +
+                                    Math.pow((lastHitMonster.y + lastHitMonster.size/2) - (potentialTarget.y + potentialTarget.size/2), 2)
+                                );
+                                if (dist < minDistance && dist < CHAIN_RADIUS) {
+                                    minDistance = dist;
+                                    closestUnhitMonster = potentialTarget;
+                                }
+                            }
+                        });
+
+                        if (closestUnhitMonster) {
+                            closestUnhitMonster.health -= finalDamage; // Causa dano ao monstro encadeado
+                            hitMonsters.add(closestUnhitMonster);
+                            lastHitMonster = closestUnhitMonster; // Atualiza o último monstro atingido para o próximo salto
+                        } else {
+                            break; // Não há mais monstros dentro do alcance para encadear
+                        }
+                    }
+                    spells.splice(i, 1); // Remove o projétil Relâmpago em cadeia após ele ativar a cadeia
+                    break; // Sai do loop interno (monstros) e vai para a próxima magia principal
+                } else if (spell.type === 'lifesteal') {
+                    monster.health -= finalDamage;
                     player.health = Math.min(player.maxHealth, player.health + (finalDamage * spellsData['Drenar Vida'].lifeSteal));
+                    spells.splice(i, 1);
+                    break; // Sai do loop interno e vai para a próxima magia
+                } else { // Todos os outros projéteis regulares (Fagulha, Bola de Fogo, Estilhaço de Gelo, Rajada Arcana, Tempestade de Meteoros)
+                    monster.health -= finalDamage;
+                    spells.splice(i, 1); // Remove o projétil após colisão
+                    break; // Sai do loop interno e vai para a próxima magia
                 }
-                spells.splice(i, 1);
-                break;
             }
         }
     }
@@ -630,6 +660,8 @@ function castSpell() {
         const playerCenterX = player.x + player.size / 2;
         const playerCenterY = player.y + player.size / 2;
 
+        // A lógica de encontrar o monstro mais próximo foi mantida para outras funcionalidades,
+        // mas não é mais usada para determinar a direção de projéteis padrão do jogador.
         let targetMonster = null;
         let minDistance = Infinity;
         monsters.forEach(monster => {
@@ -644,17 +676,6 @@ function castSpell() {
             player.health = Math.min(player.maxHealth, player.health + spellData.heal);
         } else if (spellData.type === 'shield') {
             player.shield += spellData.shieldAmount;
-        } else if (spellData.type === 'aoe_lightning') {
-            spells.push({
-                x: playerCenterX,
-                y: playerCenterY,
-                radius: spellData.radius,
-                color: spellData.color,
-                damage: spellData.damage,
-                type: 'aoe_lightning',
-                castTime: now,
-                duration: 200
-            });
         } else if (spellData.type === 'aoe_dot') {
             poisonClouds.push({
                 x: playerCenterX,
@@ -698,14 +719,27 @@ function castSpell() {
                 });
             }
         }
-        else if (targetMonster) {
-            const monsterCenterX = targetMonster.x + targetMonster.size / 2;
-            const monsterCenterY = targetMonster.y + targetMonster.size / 2;
-            const dx = monsterCenterX - playerCenterX;
-            const dy = monsterCenterY - playerCenterY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            const vx = (dx / distance) * PROJECTILE_BASE_SPEED;
-            const vy = (dy / distance) * PROJECTILE_BASE_SPEED;
+        // Nova lógica para o Relâmpago (chain_lightning_projectile)
+        else if (spellData.type === 'chain_lightning_projectile') {
+            const vx = 0; // Projétil atira reto para cima no eixo X
+            const vy = -PROJECTILE_BASE_SPEED; // Projétil atira reto para cima no eixo Y
+
+            spells.push({
+                x: playerCenterX,
+                y: playerCenterY,
+                vx: vx,
+                vy: vy,
+                damage: spellData.damage,
+                color: spellData.color,
+                sprite: spellData.sprite,
+                type: spellData.type
+            });
+        }
+        // Este 'else' cobre todas as outras magias de projéteis padrão (Fagulha, Bola de Fogo, Estilhaço de Gelo, Rajada Arcana, Drenar Vida)
+        else {
+            const vx = 0; // Não se move horizontalmente
+            const vy = -PROJECTILE_BASE_SPEED; // Move para cima na velocidade base
+
             spells.push({
                 x: playerCenterX,
                 y: playerCenterY,
@@ -927,6 +961,11 @@ loadAssets().then(() => {
 // --- Event Listeners ---
 window.addEventListener('keydown', (e) => {
     keys[e.key] = true;
+    // Adicionado controle de disparo pela tecla de Espaço
+    if (e.key === ' ' || e.key === 'Spacebar') { // 'Spacebar' é para navegadores mais antigos
+        e.preventDefault(); // Previne o comportamento padrão da barra de espaço (ex: rolar a página)
+        castSpell();
+    }
 });
 window.addEventListener('keyup', (e) => {
     keys[e.key] = false;
