@@ -31,7 +31,7 @@ const PROJECTILE_BASE_SPEED = 7;
 const INITIAL_MONSTER_SPEED = 1;
 let CONTROLLER_BAR_HEIGHT = 120; // Será atualizado dinamicamente
 const ASSET_PATHS = {
-    player: './assets/player.png',
+    player: './player.png',
     projectile_player: './assets/projectile_player.png',
     projectile_monster: './assets/projectile_monster.png',
     monster_basic: './assets/monster_basic.png',
